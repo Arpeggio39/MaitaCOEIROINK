@@ -92,6 +92,29 @@ ipcMain.handle('storage:saveProjects', (_e, data) => {
   return true;
 });
 
+const DICTIONARY_FILE = 'user-dictionary.json';
+
+function dictionaryPath() {
+  return path.join(app.getPath('userData'), DICTIONARY_FILE);
+}
+
+ipcMain.handle('dictionary:load', () => {
+  try {
+    const p = dictionaryPath();
+    if (!fs.existsSync(p)) return { dictionaryWords: [] };
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return { dictionaryWords: [] };
+  }
+});
+
+ipcMain.handle('dictionary:save', (_e, data) => {
+  const p = dictionaryPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+  return true;
+});
+
 ipcMain.handle('dialog:saveWav', async (_e, defaultName) => {
   const { canceled, filePath } = await dialog.showSaveDialog({
     defaultPath: defaultName || 'export.wav',

@@ -18,8 +18,13 @@
       </header>
       <div class="sidebar-toolbar">
         <button type="button" id="btnNewProject" class="btn btn-ghost">＋ 新規プロジェクト</button>
+        <button type="button" id="btnDictionary" class="btn btn-ghost btn-ghost-muted">読み上げ辞書</button>
       </div>
       <ul id="projectList" class="project-list" role="listbox" aria-label="プロジェクト一覧"></ul>
+      <footer class="sidebar-status" role="status" aria-live="polite">
+        <span id="engineDot" class="status-dot" aria-hidden="true"></span>
+        <p id="engineStatusText" class="sidebar-status-text muted small">準備中…</p>
+      </footer>
     </aside>
 
     <main class="main">
@@ -147,6 +152,36 @@
   </div>
 
   <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+  <div id="dictionaryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="dictionaryModalTitle">
+    <div class="modal-panel modal-panel-lg">
+      <header class="modal-head">
+        <h2 id="dictionaryModalTitle" class="modal-title">読み上げ辞書</h2>
+        <button type="button" id="btnDictDismiss" class="btn-modal-close" aria-label="閉じる">×</button>
+      </header>
+      <div class="dict-table-wrap">
+        <table class="dict-table">
+          <thead>
+            <tr>
+              <th>単語</th>
+              <th>読み（かな）</th>
+              <th class="col-accent">アクセント</th>
+              <th class="col-mora">モーラ</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="dictionaryRows"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions-between">
+        <button type="button" id="btnDictAddRow" class="btn btn-dict-add">＋ 行を追加</button>
+        <div class="modal-actions">
+          <button type="button" id="btnDictClose" class="btn btn-modal-secondary">閉じる</button>
+          <button type="button" id="btnDictApply" class="btn btn-modal-primary">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

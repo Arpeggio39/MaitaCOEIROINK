@@ -15,6 +15,32 @@
   const GAP_SILENCE_SEC = 0.28;
   const DEFAULT_API_BASE = 'http://127.0.0.1:50032';
 
+  /**
+   * @param {string} url
+   * @param {RequestInit} [init]
+   * @param {number} [ms]
+   */
+  function fetchWithTimeout(url, init = {}, ms = 8000) {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(id));
+  }
+
+  /** 読みからモーラ数のおおよその数（送信時のみ使用。ひらがな・カタカナ想定・拗音などは直前までを1モーラとみなす簡易版） */
+  function countMorasFromYomi(yomi) {
+    const s = yomi.normalize('NFKC').replace(/\s+/g, '');
+    if (!s.length) return 1;
+    const SMALL = /^[ァィゥェォャュョぁぃぅぇぉゃゅょゎ]$/u;
+    let i = 0;
+    let moras = 0;
+    while (i < s.length) {
+      moras += 1;
+      i += 1;
+      if (i < s.length && SMALL.test(s[i])) i += 1;
+    }
+    return Math.max(moras, 1);
+  }
+
   /** OpenAPI 上は整数のみ。COEIROINK でよく使う値から選択（プロジェクト保存値は最寄りに丸める） */
   const SAMPLE_RATE_OPTIONS = [8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000];
 
@@ -45,6 +71,15 @@
     volumeScaleVal: document.getElementById('volumeScaleVal'),
     prePhonemeLengthVal: document.getElementById('prePhonemeLengthVal'),
     postPhonemeLengthVal: document.getElementById('postPhonemeLengthVal'),
+    btnDictionary: document.getElementById('btnDictionary'),
+    dictionaryModal: document.getElementById('dictionaryModal'),
+    dictionaryRows: document.getElementById('dictionaryRows'),
+    btnDictDismiss: document.getElementById('btnDictDismiss'),
+    btnDictClose: document.getElementById('btnDictClose'),
+    btnDictApply: document.getElementById('btnDictApply'),
+    btnDictAddRow: document.getElementById('btnDictAddRow'),
+    engineDot: document.getElementById('engineDot'),
+    engineStatusText: document.getElementById('engineStatusText'),
   };
 
   els.btnPlayIconPlay = els.btnPlay.querySelector('.icon-play');
@@ -71,6 +106,9 @@
   let activeId = null;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let saveTimer = null;
+
+  /** @type {{ word: string, yomi: string, accent: number }[]} */
+  let dictionaryEntries = [];
 
   function showToast(msg, ms = 3400) {
     els.toast.textContent = msg;
@@ -398,7 +436,7 @@
 
   async function synthesizeLine(textLine) {
     if (!maitaStyleId) {
-      throw new Error('COEIROINK から琵音マイタのスタイルを取得できません。エンジンを起動してから再度お試しください。');
+      throw new Error('COEIROINK から琵音マイタのスタイルを取得できません。左下の接続状態を確認してエンジンを起動してから再度お試しください。');
     }
     const url = `${DEFAULT_API_BASE}/v1/synthesis`;
     const params = snapshotParams();
@@ -450,21 +488,58 @@
     return concatWavBuffers(parts);
   }
 
-  async function loadMaitaStyleId() {
-    const res = await fetch(`${DEFAULT_API_BASE}/v1/speakers`);
-    if (!res.ok) throw new Error('話者一覧を取得できませんでした');
-    /** @type {{ speakerUuid: string, styles: { styleId: number, styleName: string }[]}[]} */
-    const list = await res.json();
-    const maita = list.find((s) => s.speakerUuid === MAITA_UUID);
-    if (!maita?.styles?.length) {
+  /** @param {{ silentToast?: boolean }} [opts] */
+  async function refreshCoeiroinkStatus(opts = {}) {
+    const silent = !!opts.silentToast;
+    els.engineDot.classList.remove('ok', 'warn', 'err');
+    els.engineStatusText.textContent = 'COEIROINK を確認しています…';
+
+    try {
+      const root = await fetchWithTimeout(`${DEFAULT_API_BASE}/`, {}, 6000);
+      if (!root.ok) throw new Error(`HTTP ${root.status}`);
+      let rootStatus = 'OK';
+      try {
+        const j = await root.json();
+        if (j && typeof j.status === 'string') rootStatus = j.status;
+      } catch (_) {
+        /* plain text の場合もある */
+      }
+
+      try {
+        const res = await fetchWithTimeout(`${DEFAULT_API_BASE}/v1/speakers`, {}, 9000);
+        if (!res.ok) throw new Error(`speakers ${res.status}`);
+        /** @type {{ speakerUuid: string, styles: { styleId: number, styleName: string }[]}[]} */
+        const list = await res.json();
+        const maita = list.find((s) => s.speakerUuid === MAITA_UUID);
+        if (!maita?.styles?.length) {
+          maitaStyleId = 0;
+          els.engineDot.classList.add('warn');
+          els.engineStatusText.textContent = `エンジン応答あり（琵音マイタが一覧に見つかりません）· ${DEFAULT_API_BASE}`;
+          if (!silent) {
+            showToast(`この COEIROINK に琵音マイタが見つかりません。（${MAITA_UUID}）`);
+          }
+          return;
+        }
+        const preferred =
+          maita.styles.find((s) => s.styleName === 'のーまる') ||
+          maita.styles.find((s) => s.styleName.includes('のーまる'));
+        maitaStyleId = preferred ? preferred.styleId : maita.styles[0].styleId;
+        els.engineDot.classList.add('ok');
+        els.engineStatusText.textContent = `COEIROINK と通信中 · ${rootStatus}`;
+      } catch (_) {
+        maitaStyleId = 0;
+        els.engineDot.classList.add('warn');
+        els.engineStatusText.textContent = `API は応答したが話者一覧を取得できません · ${DEFAULT_API_BASE}`;
+        if (!silent) showToast('話者一覧（/v1/speakers）を取得できませんでした');
+      }
+    } catch (_) {
       maitaStyleId = 0;
-      showToast(`この COEIROINK に琵音マイタ (${MAITA_UUID}) が見つかりません。`);
-      return;
+      els.engineDot.classList.add('err');
+      els.engineStatusText.textContent = `COEIROINK に接続できません（エンジンまたは ${DEFAULT_API_BASE}）`;
+      if (!silent) {
+        showToast('COEIROINK に接続できません。COEIROINK を起動してから再度お試しください。');
+      }
     }
-    const preferred =
-      maita.styles.find((s) => s.styleName === 'のーまる') ||
-      maita.styles.find((s) => s.styleName.includes('のーまる'));
-    maitaStyleId = preferred ? preferred.styleId : maita.styles[0].styleId;
   }
 
   function resizeWaveformCanvas() {
@@ -619,6 +694,130 @@
     }
   }
 
+  function normalizeDictionaryEntries(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((o) => {
+        const a = Number(o?.accent);
+        return {
+          word: String(o?.word ?? '').trim(),
+          yomi: String(o?.yomi ?? '').trim(),
+          accent: Number.isFinite(a) && a >= 0 ? Math.floor(a) : 1,
+        };
+      })
+      .filter((e) => e.word || e.yomi);
+  }
+
+  async function loadDictionaryFromDisk() {
+    try {
+      const blob = await bridge.loadDictionary();
+      dictionaryEntries = normalizeDictionaryEntries(blob?.dictionaryWords);
+    } catch (_) {
+      dictionaryEntries = [];
+    }
+  }
+
+  async function persistDictionaryToDisk() {
+    await bridge.saveDictionary({
+      dictionaryWords: dictionaryEntries.map((e) => ({
+        word: e.word.trim(),
+        yomi: e.yomi.trim(),
+        accent: e.accent,
+      })),
+    });
+  }
+
+  function updateRowMoraCell(tr) {
+    const yomi = /** @type {HTMLInputElement | null} */ (tr.querySelector('.dict-input-yomi'))?.value ?? '';
+    const cell = tr.querySelector('.dict-mora-val');
+    if (cell) cell.textContent = String(countMorasFromYomi(yomi));
+  }
+
+  function renderDictionaryRows() {
+    els.dictionaryRows.innerHTML = '';
+    const rows =
+      dictionaryEntries.length > 0 ? dictionaryEntries : [{ word: '', yomi: '', accent: 1 }];
+    for (const e of rows) appendDictionaryRow(e);
+  }
+
+  /**
+   * @param {{ word: string, yomi: string, accent: number }} entry
+   */
+  function appendDictionaryRow(entry) {
+    const moras = countMorasFromYomi(entry.yomi);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="input dict-input dict-input-word" lang="en" inputmode="text" autocomplete="off" value="" spellcheck="false" /></td>
+      <td><input type="text" class="input dict-input dict-input-yomi" value="" spellcheck="false" /></td>
+      <td><input type="number" class="input dict-input dict-input-accent" min="0" step="1" /></td>
+      <td class="dict-mora-val col-mora">${moras}</td>
+      <td class="col-del"><button type="button" class="btn btn-row-del" title="行を削除">×</button></td>
+    `;
+    /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-word')).value = entry.word;
+    /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-yomi')).value = entry.yomi;
+    /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-accent')).value = String(entry.accent);
+    tr.querySelector('.dict-input-yomi')?.addEventListener('input', () => updateRowMoraCell(tr));
+    tr.querySelector('.btn-row-del')?.addEventListener('click', () => {
+      tr.remove();
+      if (!els.dictionaryRows.querySelector('tr')) appendDictionaryRow({ word: '', yomi: '', accent: 1 });
+    });
+    els.dictionaryRows.appendChild(tr);
+  }
+
+  function readDictionaryFromDom() {
+    /** @type {{ word: string, yomi: string, accent: number }[]} */
+    const rows = [];
+    for (const tr of els.dictionaryRows.querySelectorAll('tr')) {
+      const word = /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-word')).value.trim();
+      const yomi = /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-yomi')).value.trim();
+      let accentRaw = Number(/** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-accent')).value);
+      if (!Number.isFinite(accentRaw)) accentRaw = 1;
+      const accent = Math.max(0, Math.floor(accentRaw));
+      if (!word && !yomi) continue;
+      if (!word || !yomi) {
+        throw new Error('辞書では「単語」と「読み」の両方を入力してください（空の行のみスキップできます）。');
+      }
+      rows.push({ word, yomi, accent });
+    }
+    return rows;
+  }
+
+  async function applyDictionaryToCoeiroink() {
+    const rows = readDictionaryFromDom();
+    const payload = {
+      dictionaryWords: rows.map((e) => ({
+        word: e.word,
+        yomi: e.yomi,
+        accent: e.accent,
+        numMoras: countMorasFromYomi(e.yomi),
+      })),
+    };
+    const res = await fetchWithTimeout(
+      `${DEFAULT_API_BASE}/v1/set_dictionary`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      20000,
+    );
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      throw new Error(t || `辞書の保存に失敗しました (${res.status})`);
+    }
+    dictionaryEntries = rows;
+    await persistDictionaryToDisk();
+  }
+
+  function openDictionaryModal() {
+    renderDictionaryRows();
+    els.dictionaryModal.classList.remove('hidden');
+  }
+
+  function closeDictionaryModal() {
+    els.dictionaryModal.classList.add('hidden');
+  }
+
   function bindEvents() {
     els.btnNewProject.addEventListener('click', () => newProject());
     els.btnUndo.addEventListener('click', () => {
@@ -668,20 +867,36 @@
     });
 
     window.addEventListener('resize', () => resizeWaveformCanvas());
-  }
 
-  async function refreshVoiceMeta() {
-    try {
-      await loadMaitaStyleId();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
+    els.btnDictionary.addEventListener('click', () => openDictionaryModal());
+    els.btnDictDismiss.addEventListener('click', () => closeDictionaryModal());
+    els.btnDictClose.addEventListener('click', () => closeDictionaryModal());
+    els.btnDictAddRow.addEventListener('click', () => appendDictionaryRow({ word: '', yomi: '', accent: 1 }));
+    els.btnDictApply.addEventListener('click', () =>
+      void (async () => {
+        els.btnDictApply.disabled = true;
+        try {
+          await applyDictionaryToCoeiroink();
+          showToast('辞書を保存しました');
+          closeDictionaryModal();
+        } catch (e) {
+          showToast(e instanceof Error ? e.message : String(e));
+        } finally {
+          els.btnDictApply.disabled = false;
+        }
+      })(),
+    );
+    els.dictionaryModal.addEventListener('click', (ev) => {
+      if (ev.target === els.dictionaryModal) closeDictionaryModal();
+    });
   }
 
   async function boot() {
     bindEvents();
     refreshValueLabels();
     resizeWaveformCanvas();
+
+    await loadDictionaryFromDisk();
 
     const blob = await bridge.loadProjects();
     if (blob && Array.isArray(blob.projects) && blob.projects.length > 0) {
@@ -702,7 +917,9 @@
       activeId = projects[0].id;
     }
 
-    await refreshVoiceMeta();
+    await refreshCoeiroinkStatus({ silentToast: false });
+    setInterval(() => void refreshCoeiroinkStatus({ silentToast: true }), 45000);
+
     selectProject(activeId);
   }
 
