@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:*; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src blob: 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>琵音マイタ for COEIROINK</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header class="sidebar-head">
+        <div class="brand">
+          <img class="brand-logo" src="portrait.png" width="40" height="40" alt="琵音マイタ" />
+          <p class="brand-line"><strong>琵音マイタ</strong><span class="muted brand-for"> for COEIROINK</span></p>
+        </div>
+      </header>
+      <div class="sidebar-toolbar">
+        <button type="button" id="btnNewProject" class="btn btn-ghost">＋ 新規プロジェクト</button>
+      </div>
+      <ul id="projectList" class="project-list" role="listbox" aria-label="プロジェクト一覧"></ul>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <div class="main-head-left">
+          <h1 id="projectTitle" class="project-title">無題</h1>
+        </div>
+        <div class="main-head-center" aria-hidden="true">
+          <canvas id="waveformCanvas" class="waveform-canvas" width="640" height="44"></canvas>
+        </div>
+        <div class="toolbar">
+          <button type="button" id="btnUndo" class="btn btn-tool btn-tool-icon" title="取り消す">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+            </svg>
+          </button>
+          <button type="button" id="btnRedo" class="btn btn-tool btn-tool-icon" title="やり直す">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+            </svg>
+          </button>
+          <button type="button" id="btnPlay" class="btn btn-tool btn-tool-icon btn-accent" title="再生">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="icon-play">
+              <path fill-rule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clip-rule="evenodd" />
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="icon-stop hidden">
+              <path fill-rule="evenodd" d="M6 5.25A.75.75 0 0 1 6.75 4.5h10.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <button type="button" id="btnExport" class="btn btn-tool btn-tool-icon" title="書き出し">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <section class="editor-pane">
+          <label class="sr-only" for="editor">台本（改行で間を空けます）</label>
+          <textarea
+            id="editor"
+            class="editor"
+            placeholder="ここに台本を入力…&#10;&#10;改行ごとに別のフレーズとして合成され、無音でつながります。"
+            spellcheck="false"
+          ></textarea>
+        </section>
+
+        <aside class="param-pane" aria-label="音声パラメータ">
+          <h2 class="param-heading">音声</h2>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="speedScale">話速</label>
+              <span id="speedScaleVal" class="val">1.00</span>
+            </div>
+            <input type="range" id="speedScale" min="0.5" max="2" step="0.01" value="1" />
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="pitchScale">声の高さ</label>
+              <span id="pitchScaleVal" class="val">0.00</span>
+            </div>
+            <input type="range" id="pitchScale" min="-0.15" max="0.15" step="0.01" value="0" />
+          </div>
+
+          <div class="field">
+            <label for="processingAlgorithm">ピッチ加工</label>
+            <select id="processingAlgorithm" class="input">
+              <option value="td-psola">TD-PSOLA</option>
+              <option value="world">WORLD</option>
+              <option value="resampling">リサンプリング</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="intonationScale">抑揚</label>
+              <span id="intonationScaleVal" class="val">1.00</span>
+            </div>
+            <input type="range" id="intonationScale" min="0" max="2" step="0.01" value="1" />
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="volumeScale">音量</label>
+              <span id="volumeScaleVal" class="val">1.00</span>
+            </div>
+            <input type="range" id="volumeScale" min="0" max="2" step="0.01" value="1" />
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="prePhonemeLength">開始無音</label>
+              <span id="prePhonemeLengthVal" class="val">0.10</span>
+            </div>
+            <input type="range" id="prePhonemeLength" min="0" max="1" step="0.01" value="0.1" />
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label for="postPhonemeLength">終了無音</label>
+              <span id="postPhonemeLengthVal" class="val">0.10</span>
+            </div>
+            <input type="range" id="postPhonemeLength" min="0" max="1" step="0.01" value="0.1" />
+          </div>
+
+          <div class="field">
+            <label for="outputSamplingRate">サンプルレート</label>
+            <select id="outputSamplingRate" class="input">
+              <option value="8000">8,000 Hz</option>
+              <option value="11025">11,025 Hz</option>
+              <option value="16000">16,000 Hz</option>
+              <option value="22050">22,050 Hz</option>
+              <option value="24000" selected>24,000 Hz</option>
+              <option value="32000">32,000 Hz</option>
+              <option value="44100">44,100 Hz</option>
+              <option value="48000">48,000 Hz</option>
+            </select>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
+
+  <script src="app.js"></script>
+</body>
+</html>
