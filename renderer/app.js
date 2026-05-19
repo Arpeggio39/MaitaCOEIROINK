@@ -80,6 +80,27 @@
     btnDictAddRow: document.getElementById('btnDictAddRow'),
     engineDot: document.getElementById('engineDot'),
     engineStatusText: document.getElementById('engineStatusText'),
+    editorWrap: document.getElementById('editorWrap'),
+    segmentMirror: document.getElementById('segmentMirror'),
+    segmentBars: document.getElementById('segmentBars'),
+    sentenceParamFloat: document.getElementById('sentenceParamFloat'),
+    sentenceParamFloatPreview: document.getElementById('sentenceParamFloatPreview'),
+    btnSentenceParamClose: document.getElementById('btnSentenceParamClose'),
+    btnSentenceParamReset: document.getElementById('btnSentenceParamReset'),
+    floatSpeedScale: document.getElementById('floatSpeedScale'),
+    floatPitchScale: document.getElementById('floatPitchScale'),
+    floatIntonationScale: document.getElementById('floatIntonationScale'),
+    floatVolumeScale: document.getElementById('floatVolumeScale'),
+    floatPrePhonemeLength: document.getElementById('floatPrePhonemeLength'),
+    floatPostPhonemeLength: document.getElementById('floatPostPhonemeLength'),
+    floatOutputSamplingRate: document.getElementById('floatOutputSamplingRate'),
+    floatProcessingAlgorithm: document.getElementById('floatProcessingAlgorithm'),
+    floatSpeedScaleVal: document.getElementById('floatSpeedScaleVal'),
+    floatPitchScaleVal: document.getElementById('floatPitchScaleVal'),
+    floatIntonationScaleVal: document.getElementById('floatIntonationScaleVal'),
+    floatVolumeScaleVal: document.getElementById('floatVolumeScaleVal'),
+    floatPrePhonemeLengthVal: document.getElementById('floatPrePhonemeLengthVal'),
+    floatPostPhonemeLengthVal: document.getElementById('floatPostPhonemeLengthVal'),
   };
 
   els.btnPlayIconPlay = els.btnPlay.querySelector('.icon-play');
@@ -98,12 +119,20 @@
   /** @type {number[]} */
   let waveformPhases = [];
 
-  /** @typedef {{ id: string, title: string, text: string, params: Record<string, number|string>, updatedAt: string }} Project */
+  /** @typedef {Record<string, number|string>} ParamSet */
+  /** @typedef {{ key: string, start: number, end: number, text: string, index: number }} SentenceRange */
+  /** @typedef {{ id: string, title: string, text: string, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, updatedAt: string }} Project */
 
   /** @type {Project[]} */
   let projects = [];
   /** @type {string | null} */
   let activeId = null;
+  /** @type {string | null} */
+  let activeSentenceKey = null;
+  /** @type {string | null} */
+  let floatSentenceKey = null;
+  /** @type {SentenceRange[]} */
+  let lastSentenceRanges = [];
   /** @type {ReturnType<typeof setTimeout> | null} */
   let saveTimer = null;
 
@@ -135,17 +164,110 @@
   }
 
   function snapshotParams() {
+    return snapshotParamsFromControls(mainParamControls);
+  }
+
+  /** @param {ParamSet} a @param {ParamSet} b */
+  function paramsEqual(a, b) {
+    const keys = [
+      'speedScale',
+      'pitchScale',
+      'intonationScale',
+      'volumeScale',
+      'prePhonemeLength',
+      'postPhonemeLength',
+      'outputSamplingRate',
+      'processingAlgorithm',
+    ];
+    for (const k of keys) {
+      if (String(a[k]) !== String(b[k])) return false;
+    }
+    return true;
+  }
+
+  /** @param {ParamSet} params */
+  function cloneParams(params) {
+    return { ...PARAM_DEFAULTS, ...params };
+  }
+
+  /**
+   * @param {Record<string, HTMLElement | null>} root
+   */
+  function snapshotParamsFromControls(root) {
     return {
-      speedScale: Number(els.speedScale.value),
-      pitchScale: Number(els.pitchScale.value),
-      intonationScale: Number(els.intonationScale.value),
-      volumeScale: Number(els.volumeScale.value),
-      prePhonemeLength: Number(els.prePhonemeLength.value),
-      postPhonemeLength: Number(els.postPhonemeLength.value),
-      outputSamplingRate: Number(els.outputSamplingRate.value),
-      processingAlgorithm: els.processingAlgorithm.value,
+      speedScale: Number(root.speedScale.value),
+      pitchScale: Number(root.pitchScale.value),
+      intonationScale: Number(root.intonationScale.value),
+      volumeScale: Number(root.volumeScale.value),
+      prePhonemeLength: Number(root.prePhonemeLength.value),
+      postPhonemeLength: Number(root.postPhonemeLength.value),
+      outputSamplingRate: Number(root.outputSamplingRate.value),
+      processingAlgorithm: root.processingAlgorithm.value,
     };
   }
+
+  /**
+   * @param {Record<string, HTMLElement | null>} root
+   * @param {ParamSet} params
+   */
+  function applyParamsToControls(root, params) {
+    const par = { ...PARAM_DEFAULTS, ...params };
+    root.speedScale.value = String(par.speedScale);
+    root.pitchScale.value = String(par.pitchScale);
+    root.intonationScale.value = String(par.intonationScale);
+    root.volumeScale.value = String(par.volumeScale);
+    root.prePhonemeLength.value = String(par.prePhonemeLength);
+    root.postPhonemeLength.value = String(par.postPhonemeLength);
+    root.outputSamplingRate.value = String(coerceSampleRate(par.outputSamplingRate ?? PARAM_DEFAULTS.outputSamplingRate));
+    root.processingAlgorithm.value = String(par.processingAlgorithm);
+  }
+
+  /**
+   * @param {Record<string, HTMLElement | null>} root
+   */
+  function refreshValueLabelsFor(root) {
+    const fmt = (n, d = 2) => Number(n).toFixed(d);
+    root.speedScaleVal.textContent = fmt(root.speedScale.value);
+    root.pitchScaleVal.textContent = fmt(root.pitchScale.value);
+    root.intonationScaleVal.textContent = fmt(root.intonationScale.value);
+    root.volumeScaleVal.textContent = fmt(root.volumeScale.value);
+    root.prePhonemeLengthVal.textContent = fmt(root.prePhonemeLength.value);
+    root.postPhonemeLengthVal.textContent = fmt(root.postPhonemeLength.value);
+  }
+
+  const mainParamControls = {
+    speedScale: els.speedScale,
+    pitchScale: els.pitchScale,
+    intonationScale: els.intonationScale,
+    volumeScale: els.volumeScale,
+    prePhonemeLength: els.prePhonemeLength,
+    postPhonemeLength: els.postPhonemeLength,
+    outputSamplingRate: els.outputSamplingRate,
+    processingAlgorithm: els.processingAlgorithm,
+    speedScaleVal: els.speedScaleVal,
+    pitchScaleVal: els.pitchScaleVal,
+    intonationScaleVal: els.intonationScaleVal,
+    volumeScaleVal: els.volumeScaleVal,
+    prePhonemeLengthVal: els.prePhonemeLengthVal,
+    postPhonemeLengthVal: els.postPhonemeLengthVal,
+  };
+
+  const floatParamControls = {
+    speedScale: els.floatSpeedScale,
+    pitchScale: els.floatPitchScale,
+    intonationScale: els.floatIntonationScale,
+    volumeScale: els.floatVolumeScale,
+    prePhonemeLength: els.floatPrePhonemeLength,
+    postPhonemeLength: els.floatPostPhonemeLength,
+    outputSamplingRate: els.floatOutputSamplingRate,
+    processingAlgorithm: els.floatProcessingAlgorithm,
+    speedScaleVal: els.floatSpeedScaleVal,
+    pitchScaleVal: els.floatPitchScaleVal,
+    intonationScaleVal: els.floatIntonationScaleVal,
+    volumeScaleVal: els.floatVolumeScaleVal,
+    prePhonemeLengthVal: els.floatPrePhonemeLengthVal,
+    postPhonemeLengthVal: els.floatPostPhonemeLengthVal,
+  };
 
   function deriveTitle(text) {
     const line = text
@@ -189,7 +311,324 @@
       if (p.params && p.params.outputSamplingRate != null) {
         p.params.outputSamplingRate = coerceSampleRate(p.params.outputSamplingRate);
       }
+      if (!Array.isArray(p.sentenceParams) && !p.sentenceParamsByKey) p.sentenceParamsByKey = {};
+      migrateSentenceParamsForProject(p);
     }
+  }
+
+  /**
+   * @param {Project} project
+   */
+  function migrateSentenceParamsForProject(project) {
+    if (project.sentenceParamsByKey) return;
+    project.sentenceParamsByKey = {};
+    const ranges = sentenceRangesFromText(project.text || '');
+    if (Array.isArray(project.sentenceParams)) {
+      for (let i = 0; i < ranges.length; i++) {
+        const custom = project.sentenceParams[i];
+        if (custom && typeof custom === 'object') {
+          project.sentenceParamsByKey[ranges[i].key] = cloneParams(custom);
+        }
+      }
+    }
+    delete project.sentenceParams;
+  }
+
+  /**
+   * @param {string} text
+   * @returns {SentenceRange[]}
+   */
+  function sentenceRangesFromText(text) {
+    /** @type {SentenceRange[]} */
+    const ranges = [];
+    let buf = '';
+    let segStart = 0;
+    let index = 0;
+    for (let i = 0; i < text.length; i++) {
+      buf += text[i];
+      if (text[i] === '。') {
+        const trimmed = buf.trim();
+        if (trimmed) {
+          const lead = buf.length - buf.trimStart().length;
+          const start = segStart + lead;
+          const end = i + 1;
+          ranges.push({
+            key: `s${start}`,
+            start,
+            end,
+            text: text.slice(start, end),
+            index: index++,
+          });
+        }
+        buf = '';
+        segStart = i + 1;
+      }
+    }
+    const tail = buf.trim();
+    if (tail) {
+      const lead = buf.length - buf.trimStart().length;
+      const start = segStart + lead;
+      ranges.push({
+        key: `s${start}`,
+        start,
+        end: text.length,
+        text: text.slice(start, text.length),
+        index: index++,
+      });
+    }
+    return ranges;
+  }
+
+  /**
+   * @param {string} text
+   */
+  function sentencesFromText(text) {
+    return sentenceRangesFromText(text).map((r) => r.text);
+  }
+
+  /**
+   * @param {Project} project
+   * @param {SentenceRange[]} prevRanges
+   * @param {SentenceRange[]} newRanges
+   */
+  function remapSentenceParams(project, prevRanges, newRanges) {
+    const oldMap = project.sentenceParamsByKey || {};
+    /** @type {Record<string, ParamSet>} */
+    const next = {};
+    const usedOldKeys = new Set();
+
+    for (const nr of newRanges) {
+      if (oldMap[nr.key]) {
+        next[nr.key] = cloneParams(oldMap[nr.key]);
+        continue;
+      }
+      const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
+      if (prev && oldMap[prev.key]) {
+        next[nr.key] = cloneParams(oldMap[prev.key]);
+        usedOldKeys.add(prev.key);
+      }
+    }
+    project.sentenceParamsByKey = next;
+  }
+
+  /**
+   * @param {Project | null} project
+   * @param {string} key
+   */
+  function getSentenceParams(project, key) {
+    if (!project) return cloneParams(snapshotParams());
+    const base = cloneParams(project.params);
+    const custom = project.sentenceParamsByKey?.[key];
+    return custom ? cloneParams(custom) : base;
+  }
+
+  /**
+   * @param {Project | null} project
+   * @param {string} key
+   */
+  function hasCustomSentenceParams(project, key) {
+    return !!(project?.sentenceParamsByKey?.[key]);
+  }
+
+  /**
+   * @param {string} s
+   */
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /**
+   * @param {string} text
+   * @param {SentenceRange[]} ranges
+   */
+  function buildMirrorHtml(text, ranges) {
+    if (!text) return '';
+    let html = '';
+    let cursor = 0;
+    for (const r of ranges) {
+      if (cursor < r.start) html += escapeHtml(text.slice(cursor, r.start));
+      html += `<span class="segment-sent" data-key="${r.key}" data-index="${r.index}">${escapeHtml(text.slice(r.start, r.end))}</span>`;
+      cursor = r.end;
+    }
+    if (cursor < text.length) html += escapeHtml(text.slice(cursor));
+    return html;
+  }
+
+  function syncMirrorStyles() {
+    const cs = getComputedStyle(els.editor);
+    const m = els.segmentMirror;
+    m.style.font = cs.font;
+    m.style.fontSize = cs.fontSize;
+    m.style.fontFamily = cs.fontFamily;
+    m.style.lineHeight = cs.lineHeight;
+    m.style.letterSpacing = cs.letterSpacing;
+    m.style.padding = cs.padding;
+    m.style.boxSizing = cs.boxSizing;
+    m.style.whiteSpace = 'pre-wrap';
+    m.style.wordWrap = 'break-word';
+    m.style.overflowWrap = cs.overflowWrap;
+  }
+
+  function syncEditorOverlayScroll() {
+    const st = els.editor.scrollTop;
+    const transform = `translate3d(0, ${-st}px, 0)`;
+    els.segmentMirror.style.transform = transform;
+    els.segmentBars.style.transform = transform;
+    positionInlineBars();
+  }
+
+  function positionInlineBars() {
+    const wrapRect = els.editorWrap.getBoundingClientRect();
+    const mirrorSpans = els.segmentMirror.querySelectorAll('.segment-sent');
+    const bars = els.segmentBars.querySelectorAll('.segment-inline-bar');
+    mirrorSpans.forEach((span, i) => {
+      const bar = bars[i];
+      if (!bar) return;
+      const rect = span.getBoundingClientRect();
+      bar.style.left = `${rect.left - wrapRect.left}px`;
+      bar.style.top = `${rect.bottom - wrapRect.top + 3}px`;
+      bar.style.width = `${Math.max(rect.width, 28)}px`;
+    });
+  }
+
+  function renderSegmentOverlay() {
+    syncMirrorStyles();
+    const text = els.editor.value;
+    const p = activeProject();
+    const ranges = sentenceRangesFromText(text);
+
+    if (p) {
+      if (lastSentenceRanges.length) remapSentenceParams(p, lastSentenceRanges, ranges);
+      else migrateSentenceParamsForProject(p);
+    }
+    lastSentenceRanges = ranges;
+
+    if (floatSentenceKey != null && !ranges.some((r) => r.key === floatSentenceKey)) {
+      closeSentenceParamFloat();
+    }
+
+    els.segmentMirror.innerHTML = buildMirrorHtml(text, ranges);
+    els.segmentBars.innerHTML = '';
+
+    if (!text || ranges.length === 0) {
+      activeSentenceKey = null;
+      return;
+    }
+
+    for (const r of ranges) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'segment-inline-bar';
+      btn.dataset.key = r.key;
+      if (activeSentenceKey === r.key) btn.classList.add('active');
+      if (hasCustomSentenceParams(p, r.key)) btn.classList.add('custom');
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', activeSentenceKey === r.key ? 'true' : 'false');
+      const preview = r.text.length > 48 ? `${r.text.slice(0, 48)}…` : r.text;
+      btn.title = preview;
+      btn.setAttribute('aria-label', `文 ${r.index + 1}: ${preview}`);
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        openSentenceParamFloat(r.key, r.index, r.text, btn.getBoundingClientRect());
+      });
+      els.segmentBars.appendChild(btn);
+    }
+
+    syncEditorOverlayScroll();
+  }
+
+  function saveFloatParamsToProject() {
+    if (floatSentenceKey == null) return;
+    const p = activeProject();
+    if (!p) return;
+    if (!p.sentenceParamsByKey) p.sentenceParamsByKey = {};
+    const saved = snapshotParamsFromControls(floatParamControls);
+    const base = cloneParams(p.params);
+    if (paramsEqual(saved, base)) {
+      delete p.sentenceParamsByKey[floatSentenceKey];
+    } else {
+      p.sentenceParamsByKey[floatSentenceKey] = cloneParams(saved);
+    }
+    bumpActiveUpdatedAt();
+    schedulePersist();
+    updateInlineBarStates();
+  }
+
+  function updateInlineBarStates() {
+    const p = activeProject();
+    for (const btn of els.segmentBars.querySelectorAll('.segment-inline-bar')) {
+      const key = btn.dataset.key;
+      if (!key) continue;
+      btn.classList.toggle('active', key === activeSentenceKey);
+      btn.classList.toggle('custom', hasCustomSentenceParams(p, key));
+      btn.setAttribute('aria-selected', key === activeSentenceKey ? 'true' : 'false');
+    }
+  }
+
+  /**
+   * @param {string} key
+   * @param {number} index
+   * @param {string} previewText
+   * @param {DOMRect} anchorRect
+   */
+  function openSentenceParamFloat(key, index, previewText, anchorRect) {
+    if (floatSentenceKey != null && floatSentenceKey !== key) {
+      saveFloatParamsToProject();
+    }
+    const p = activeProject();
+    if (!p) return;
+
+    floatSentenceKey = key;
+    activeSentenceKey = key;
+    const params = getSentenceParams(p, key);
+    applyParamsToControls(floatParamControls, params);
+    refreshValueLabelsFor(floatParamControls);
+
+    els.sentenceParamFloatPreview.textContent =
+      previewText.length > 56 ? `${previewText.slice(0, 56)}…` : previewText;
+
+    els.sentenceParamFloat.classList.remove('hidden');
+    positionSentenceParamFloat(anchorRect);
+    renderSegmentOverlay();
+  }
+
+  /** @param {DOMRect} anchorRect */
+  function positionSentenceParamFloat(anchorRect) {
+    const panel = els.sentenceParamFloat;
+    const pw = panel.offsetWidth;
+    const ph = panel.offsetHeight;
+    let left = anchorRect.left + anchorRect.width / 2 - pw / 2;
+    let top = anchorRect.bottom + 10;
+    if (top + ph > window.innerHeight - 12) {
+      top = anchorRect.top - ph - 10;
+    }
+    left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+    top = Math.max(12, Math.min(top, window.innerHeight - ph - 12));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+  }
+
+  function closeSentenceParamFloat() {
+    saveFloatParamsToProject();
+    floatSentenceKey = null;
+    els.sentenceParamFloat.classList.add('hidden');
+    renderSegmentOverlay();
+  }
+
+  function resetFloatSentenceParams() {
+    if (floatSentenceKey == null) return;
+    const p = activeProject();
+    if (!p?.sentenceParamsByKey) return;
+    delete p.sentenceParamsByKey[floatSentenceKey];
+    applyParamsToControls(floatParamControls, p.params);
+    refreshValueLabelsFor(floatParamControls);
+    bumpActiveUpdatedAt();
+    schedulePersist();
+    renderSegmentOverlay();
   }
 
   function activeProject() {
@@ -204,6 +643,7 @@
     p.params = snapshotParams();
     els.projectTitle.textContent = p.title;
     renderProjectList();
+    renderSegmentOverlay();
   }
 
   function schedulePersist() {
@@ -269,23 +709,22 @@
   }
 
   function selectProject(id) {
-    if (activeId !== id) syncActiveProjectFromUi();
+    if (activeId !== id) {
+      closeSentenceParamFloat();
+      syncActiveProjectFromUi();
+    }
     activeId = id;
+    activeSentenceKey = null;
+    lastSentenceRanges = [];
     const p = activeProject();
     if (!p) return;
+    migrateSentenceParamsForProject(p);
     els.editor.value = p.text || '';
-    const par = { ...PARAM_DEFAULTS, ...p.params };
-    els.speedScale.value = String(par.speedScale);
-    els.pitchScale.value = String(par.pitchScale);
-    els.intonationScale.value = String(par.intonationScale);
-    els.volumeScale.value = String(par.volumeScale);
-    els.prePhonemeLength.value = String(par.prePhonemeLength);
-    els.postPhonemeLength.value = String(par.postPhonemeLength);
-    els.outputSamplingRate.value = String(coerceSampleRate(par.outputSamplingRate ?? PARAM_DEFAULTS.outputSamplingRate));
-    els.processingAlgorithm.value = String(par.processingAlgorithm);
+    applyParamsToControls(mainParamControls, p.params);
     refreshValueLabels();
     els.projectTitle.textContent = p.title || '無題';
     renderProjectList();
+    renderSegmentOverlay();
     schedulePersist();
   }
 
@@ -298,6 +737,7 @@
       title: '無題',
       text: '',
       params: { ...PARAM_DEFAULTS },
+      sentenceParamsByKey: {},
       updatedAt: now,
     };
     projects.unshift(p);
@@ -307,13 +747,7 @@
   }
 
   function refreshValueLabels() {
-    const fmt = (n, d = 2) => Number(n).toFixed(d);
-    els.speedScaleVal.textContent = fmt(els.speedScale.value);
-    els.pitchScaleVal.textContent = fmt(els.pitchScale.value);
-    els.intonationScaleVal.textContent = fmt(els.intonationScale.value);
-    els.volumeScaleVal.textContent = fmt(els.volumeScale.value);
-    els.prePhonemeLengthVal.textContent = fmt(els.prePhonemeLength.value);
-    els.postPhonemeLengthVal.textContent = fmt(els.postPhonemeLength.value);
+    refreshValueLabelsFor(mainParamControls);
   }
 
   /**
@@ -418,28 +852,15 @@
   }
 
   /**
-   * @param {string} text
+   * @param {string} textLine
+   * @param {ParamSet} [paramsOverride]
    */
-  function segmentsFromText(text) {
-    const raw = text.split(/\r?\n/);
-    /** @type {{ kind: 'speech', value: string } | { kind: 'gap' }}[] */
-    const out = [];
-    for (const line of raw) {
-      const t = line.trim();
-      if (t) out.push({ kind: 'speech', value: t });
-      else out.push({ kind: 'gap' });
-    }
-    while (out.length && out[0].kind === 'gap') out.shift();
-    while (out.length && out[out.length - 1].kind === 'gap') out.pop();
-    return out;
-  }
-
-  async function synthesizeLine(textLine) {
+  async function synthesizeLine(textLine, paramsOverride) {
     if (!maitaStyleId) {
       throw new Error('COEIROINK から琵音マイタのスタイルを取得できません。左下の接続状態を確認してエンジンを起動してから再度お試しください。');
     }
     const url = `${DEFAULT_API_BASE}/v1/synthesis`;
-    const params = snapshotParams();
+    const params = paramsOverride ?? snapshotParams();
     const body = {
       speakerUuid: MAITA_UUID,
       styleId: maitaStyleId,
@@ -466,24 +887,18 @@
   }
 
   async function buildFullUtterance() {
-    const segs = segmentsFromText(els.editor.value);
-    const speech = segs.filter((s) => s.kind === 'speech');
-    if (speech.length === 0) {
-      throw new Error('読み上げるテキストがありません（空行だけでは合成できません）。');
+    saveFloatParamsToProject();
+    const p = activeProject();
+    const ranges = sentenceRangesFromText(els.editor.value);
+    if (ranges.length === 0) {
+      throw new Error('読み上げるテキストがありません（「。」で区切った文が必要です）。');
     }
     /** @type {ArrayBuffer[]} */
     const parts = [];
-    /** @type {{ sampleRate: number, numChannels: number, bitsPerSample: number } | null} */
-    let meta = null;
-    for (const seg of segs) {
-      if (seg.kind === 'gap') {
-        if (!meta) continue;
-        parts.push(silenceBuffer(meta, GAP_SILENCE_SEC));
-        continue;
-      }
-      const wav = await synthesizeLine(seg.value);
+    for (const r of ranges) {
+      const params = getSentenceParams(p, r.key);
+      const wav = await synthesizeLine(r.text, params);
       parts.push(wav);
-      if (!meta) meta = parseWav(wav);
     }
     return concatWavBuffers(parts);
   }
@@ -837,6 +1252,8 @@
       schedulePersist();
     });
 
+    els.editor.addEventListener('scroll', () => syncEditorOverlayScroll());
+
     const paramIds = [
       'speedScale',
       'pitchScale',
@@ -866,7 +1283,50 @@
       schedulePersist();
     });
 
-    window.addEventListener('resize', () => resizeWaveformCanvas());
+    const floatParamIds = [
+      'floatSpeedScale',
+      'floatPitchScale',
+      'floatIntonationScale',
+      'floatVolumeScale',
+      'floatPrePhonemeLength',
+      'floatPostPhonemeLength',
+    ];
+    for (const id of floatParamIds) {
+      els[id].addEventListener('input', () => {
+        refreshValueLabelsFor(floatParamControls);
+        saveFloatParamsToProject();
+      });
+    }
+    els.floatOutputSamplingRate.addEventListener('change', () => saveFloatParamsToProject());
+    els.floatProcessingAlgorithm.addEventListener('change', () => saveFloatParamsToProject());
+
+    els.btnSentenceParamClose.addEventListener('click', () => closeSentenceParamFloat());
+    els.btnSentenceParamReset.addEventListener('click', () => resetFloatSentenceParams());
+
+    els.sentenceParamFloat.addEventListener('click', (ev) => ev.stopPropagation());
+
+    document.addEventListener('click', (ev) => {
+      if (floatSentenceKey == null) return;
+      const t = /** @type {Element} */ (ev.target);
+      if (els.sentenceParamFloat.contains(t)) return;
+      if (t.closest('.segment-inline-bar')) return;
+      closeSentenceParamFloat();
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && floatSentenceKey != null) {
+        closeSentenceParamFloat();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      resizeWaveformCanvas();
+      renderSegmentOverlay();
+      if (floatSentenceKey != null) {
+        const activeBtn = els.segmentBars.querySelector('.segment-inline-bar.active');
+        if (activeBtn) positionSentenceParamFloat(activeBtn.getBoundingClientRect());
+      }
+    });
 
     els.btnDictionary.addEventListener('click', () => openDictionaryModal());
     els.btnDictDismiss.addEventListener('click', () => closeDictionaryModal());
@@ -911,6 +1371,7 @@
           title: '無題',
           text: '',
           params: { ...PARAM_DEFAULTS },
+          sentenceParamsByKey: {},
           updatedAt: now,
         },
       ];

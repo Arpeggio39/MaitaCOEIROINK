@@ -3,12 +3,53 @@
   "version": "0.1.0",
   "description": "琵音マイタ専用の COEIROINK API ラッパー（Electron）",
   "main": "main.js",
+  "author": "Arpeggio",
+  "license": "MIT",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64",
+    "dist:win:dir": "electron-builder --win --x64 --dir"
+  },
+  "build": {
+    "appId": "jp.arpeggio.maita-coeiroink",
+    "productName": "琵音マイタ for COEIROINK",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "MaitaCOEIROINK"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "琵音マイタ for COEIROINK",
+      "installerLanguages": [
+        "ja_JP",
+        "en_US"
+      ],
+      "language": "1041",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    }
   },
   "devDependencies": {
-    "electron": "^33.2.1"
-  },
-  "author": "Arpeggio",
-  "license": "MIT"
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  }
 }
