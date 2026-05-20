@@ -9,6 +9,7 @@
   --shadow: 0 8px 32px rgba(25, 30, 45, 0.06);
   --radius: 12px;
   --radius-sm: 8px;
+  --param-pane-width: 300px;
   --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', sans-serif;
 }
 
@@ -240,22 +241,21 @@ button {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   background: linear-gradient(165deg, #f3f4f8 0%, #ebecef 100%);
 }
 
 .main-head {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) var(--param-pane-width);
   align-items: center;
-  gap: 12px;
-  padding: 14px 18px 14px 22px;
+  column-gap: 0;
+  padding: 14px 0 14px 22px;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.65);
   backdrop-filter: blur(12px);
   flex-shrink: 0;
-  overflow: visible;
 }
 
 .main-head-left {
@@ -335,18 +335,23 @@ button {
 
 .toolbar {
   grid-column: 2;
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  width: var(--param-pane-width);
+  max-width: 100%;
+  padding: 0 16px 0 8px;
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
 .toolbar-buttons {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex-wrap: nowrap;
   flex-shrink: 0;
 }
 
@@ -432,10 +437,11 @@ button {
 .intonation-dock {
   grid-row: 2;
   margin-top: 10px;
-  padding: 0 4px 4px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
+  padding: 8px 14px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #fff;
+  box-shadow: var(--shadow);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -562,8 +568,8 @@ button {
 }
 
 .param-pane {
-  width: 300px;
-  flex: 0 0 300px;
+  width: var(--param-pane-width);
+  flex: 0 0 var(--param-pane-width);
   min-height: 0;
   padding: 18px 20px 24px;
   overflow-x: hidden;
