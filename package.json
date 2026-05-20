@@ -2,7 +2,7 @@
   "name": "maita-coeiroink-shell",
   "version": "0.1.0",
   "description": "琵音マイタ専用の COEIROINK API ラッパー（Electron）",
-  "main": "main.js",
+  "main": "src/main/index.js",
   "author": "Arpeggio",
   "license": "MIT",
   "scripts": {
@@ -17,8 +17,8 @@
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "preload.js",
+      "src/main/**/*",
+      "src/preload/**/*",
       "renderer/**/*",
       "package.json"
     ],

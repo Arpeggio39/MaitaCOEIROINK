@@ -23,7 +23,7 @@
       <ul id="projectList" class="project-list" role="listbox" aria-label="プロジェクト一覧"></ul>
       <footer class="sidebar-status" role="status" aria-live="polite">
         <span id="engineDot" class="status-dot" aria-hidden="true"></span>
-        <p id="engineStatusText" class="sidebar-status-text muted small">準備中…</p>
+        <p id="engineStatusText" class="sidebar-status-text muted small">COEIROINK 未接続</p>
       </footer>
     </aside>
 
@@ -93,7 +93,16 @@
             <header class="intonation-dock-head">
               <button type="button" id="btnRegenerateProsody" class="btn-inline-link small">韻律を再取得</button>
             </header>
-            <div id="intonationMoras" class="intonation-moras" role="group" aria-label="モーラごとのピッチ"></div>
+            <div id="intonationPanel" class="intonation-panel">
+              <div id="intonationLoading" class="intonation-loading" hidden aria-live="polite">
+                <span class="intonation-spinner" aria-hidden="true"></span>
+                <span class="intonation-loading-text">韻律を取得中…</span>
+              </div>
+              <div id="intonationContent" class="intonation-content">
+                <div id="intonationTextStrip" class="intonation-text-strip" aria-label="読み（ひらがな）"></div>
+                <div id="intonationSliderStrip" class="intonation-slider-strip" role="group" aria-label="単語ごとのピッチ"></div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -163,6 +172,16 @@
 
   <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
 
+  <div id="connectPrompt" class="boot-overlay" role="dialog" aria-modal="true" aria-labelledby="connectPromptTitle">
+    <div class="boot-overlay-inner">
+      <img class="boot-overlay-logo" src="portrait.png" width="64" height="64" alt="" />
+      <p id="connectPromptTitle" class="boot-overlay-title">COEIROINK を起動してください</p>
+      <p class="connect-prompt-desc muted small">COEIROINK を起動したら、下のボタンを押して接続を確認します。</p>
+      <p id="connectPromptFeedback" class="connect-prompt-feedback muted small" aria-live="polite"></p>
+      <button type="button" id="btnCoeiroinkStarted" class="btn btn-modal-primary">COEIROINK を起動しました</button>
+    </div>
+  </div>
+
   <div id="dictionaryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="dictionaryModalTitle">
     <div class="modal-panel modal-panel-lg">
       <header class="modal-head">
@@ -193,6 +212,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
