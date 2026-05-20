@@ -21,7 +21,6 @@ import {
   ensureSegmentProsody,
   getMoraPitch,
   getSegmentProsody,
-  kanaReestimateInFlight,
   remapSentenceProsody,
   scheduleProsodyForRanges,
   scheduleProsodyKanaReestimate,
@@ -31,7 +30,6 @@ import {
   activeProject,
   activeSentenceKey,
   lastSentenceRanges,
-  prosodyFetchInFlight,
   setActiveSentenceKey,
   setRefreshIntonationUi,
 } from './state.js';
@@ -164,8 +162,6 @@ export function renderIntonationUI() {
   const key = activeSentenceKey;
   els.intonationTextStrip.innerHTML = '';
   els.intonationSliderStrip.innerHTML = '';
-  els.intonationLoading.hidden = true;
-  els.intonationLoading.classList.remove('is-overlay');
   els.intonationContent.hidden = false;
   els.btnRegenerateProsody.disabled = key == null;
 
@@ -175,16 +171,6 @@ export function renderIntonationUI() {
   }
 
   const entry = getSegmentProsody(p, key);
-  if (entry?.loading) delete entry.loading;
-
-  const isInitialLoading = prosodyFetchInFlight.has(key) && !entry?.detail?.length;
-
-  if (isInitialLoading) {
-    els.intonationLoading.hidden = false;
-    els.intonationContent.hidden = true;
-    els.btnRegenerateProsody.disabled = true;
-  }
-
   if (!entry?.detail?.length) return;
 
   const cells = buildHiraganaCellsFromDetail(entry.detail);
@@ -195,8 +181,6 @@ export function renderIntonationUI() {
   els.intonationTextStrip.style.gridTemplateColumns = gridCols;
 
   const moraSpans = buildMoraSpansFromDetail(entry.detail);
-  const kanaBusy = kanaReestimateInFlight.has(key);
-  const prosodyBusy = prosodyFetchInFlight.has(key) && !entry.detail?.length;
 
   for (const span of moraSpans) {
     const input = document.createElement('input');
@@ -204,7 +188,6 @@ export function renderIntonationUI() {
     input.className = 'intonation-mora-input';
     input.value = span.mora.hira || '';
     input.style.gridColumn = `${span.charStart + 1} / ${span.charEnd + 1}`;
-    input.disabled = prosodyBusy || kanaBusy;
     input.setAttribute('aria-label', `${span.mora.hira || ''} の読み`);
     input.spellcheck = false;
     input.autocomplete = 'off';
@@ -257,7 +240,6 @@ export function renderIntonationUI() {
     slider.max = String(MORA_PITCH_MAX);
     slider.step = '0.05';
     slider.value = String(pitch);
-    slider.disabled = prosodyBusy || kanaBusy;
     slider.setAttribute('aria-label', `${cell.char} のピッチ`);
 
     slider.addEventListener('input', () => {

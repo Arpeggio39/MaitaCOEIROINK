@@ -482,46 +482,10 @@ button {
 }
 
 .intonation-panel {
-  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.intonation-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 18px 12px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.intonation-loading.is-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.88);
-  border-radius: calc(var(--radius) - 2px);
-}
-
-.intonation-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(232, 72, 142, 0.22);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: intonation-spin 0.7s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes intonation-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .intonation-content {
@@ -1071,6 +1035,12 @@ button {
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+
+@keyframes intonation-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .boot-overlay-spinner {

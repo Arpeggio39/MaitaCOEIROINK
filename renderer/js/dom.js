@@ -38,7 +38,6 @@ export const els = {
   btnRegenerateProsody: document.getElementById('btnRegenerateProsody'),
   intonationDock: document.getElementById('intonationDock'),
   intonationPanel: document.getElementById('intonationPanel'),
-  intonationLoading: document.getElementById('intonationLoading'),
   intonationContent: document.getElementById('intonationContent'),
   intonationTextStrip: document.getElementById('intonationTextStrip'),
   intonationSliderStrip: document.getElementById('intonationSliderStrip'),

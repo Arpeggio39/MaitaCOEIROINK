@@ -183,7 +183,7 @@ let kanaReestimateTimer = null;
 /** @type {{ project: import('./state.js').Project, key: string } | null} */
 let kanaReestimatePending = null;
 /** @type {Set<string>} */
-export const kanaReestimateInFlight = new Set();
+const kanaReestimateInFlight = new Set();
 
 /**
  * @param {import('./state.js').Project} project
@@ -371,7 +371,6 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
     text: trimmed,
     detail: !opts.force && cached?.text === trimmed ? cloneProsodyDetail(cached.detail) : [],
   };
-  delete project.sentenceProsodyByKey[key].loading;
   prosodyFetchInFlight.add(key);
   notifyIntonationUi();
 

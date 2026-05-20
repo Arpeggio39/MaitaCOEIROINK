@@ -103,9 +103,6 @@ export function migrateProjects(list) {
     }
     if (!Array.isArray(p.sentenceParams) && !p.sentenceParamsByKey) p.sentenceParamsByKey = {};
     if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
-    for (const k of Object.keys(p.sentenceProsodyByKey)) {
-      delete p.sentenceProsodyByKey[k].loading;
-    }
     if (p.titleEdited == null) p.titleEdited = false;
     migrateSentenceParamsForProject(p);
   }

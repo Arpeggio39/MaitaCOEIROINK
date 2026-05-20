@@ -13,17 +13,7 @@ export function schedulePersist() {
   setSaveTimer(setTimeout(() => void persistProjects(), 320));
 }
 
-function stripTransientProsodyState() {
-  for (const p of projects) {
-    if (!p.sentenceProsodyByKey) continue;
-    for (const k of Object.keys(p.sentenceProsodyByKey)) {
-      delete p.sentenceProsodyByKey[k].loading;
-    }
-  }
-}
-
 export async function persistProjects() {
   syncUiBeforeSave?.();
-  stripTransientProsodyState();
   await bridge.saveProjects({ projects, activeId });
 }

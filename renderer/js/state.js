@@ -3,7 +3,7 @@ import { EXPORT_SAMPLE_RATE_DEFAULT } from './constants.js';
 /** @typedef {Record<string, number|string>} ParamSet */
 /** @typedef {{ key: string, start: number, end: number, text: string, index: number }} SentenceRange */
 /** @typedef {{ phoneme: string, hira: string, accent: number, pitch?: number }} SegmentMora */
-/** @typedef {{ text: string, detail: SegmentMora[][], loading?: boolean }} SegmentProsody */
+/** @typedef {{ text: string, detail: SegmentMora[][] }} SegmentProsody */
 /** @typedef {{ id: string, title: string, text: string, titleEdited?: boolean, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, sentenceProsodyByKey?: Record<string, SegmentProsody>, updatedAt: string }} Project */
 
 /** @type {Project[]} */
