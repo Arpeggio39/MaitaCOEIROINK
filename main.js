@@ -3,9 +3,14 @@ const path = require('path');
 const fs = require('fs');
 
 const PROJECTS_FILE = 'projects-data.json';
+const APP_SETTINGS_FILE = 'app-settings.json';
 
 function projectsPath() {
   return path.join(app.getPath('userData'), PROJECTS_FILE);
+}
+
+function appSettingsPath() {
+  return path.join(app.getPath('userData'), APP_SETTINGS_FILE);
 }
 
 function installAppMenu() {
@@ -87,6 +92,23 @@ ipcMain.handle('storage:loadProjects', () => {
 
 ipcMain.handle('storage:saveProjects', (_e, data) => {
   const p = projectsPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+  return true;
+});
+
+ipcMain.handle('storage:loadAppSettings', () => {
+  try {
+    const p = appSettingsPath();
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle('storage:saveAppSettings', (_e, data) => {
+  const p = appSettingsPath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
   return true;

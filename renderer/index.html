@@ -30,12 +30,14 @@
     <main class="main">
       <header class="main-head">
         <div class="main-head-left">
-          <h1 id="projectTitle" class="project-title">無題</h1>
+          <h1 id="projectTitle" class="project-title" title="クリックしてタイトルを編集">無題</h1>
+          <input type="text" id="projectTitleInput" class="project-title-input" hidden spellcheck="false" aria-label="プロジェクト名" />
         </div>
         <div class="main-head-center" aria-hidden="true">
           <canvas id="waveformCanvas" class="waveform-canvas" width="640" height="44"></canvas>
         </div>
         <div class="toolbar">
+          <div class="toolbar-buttons">
           <button type="button" id="btnUndo" class="btn btn-tool btn-tool-icon" title="取り消す">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
@@ -54,182 +56,109 @@
               <path fill-rule="evenodd" d="M6 5.25A.75.75 0 0 1 6.75 4.5h10.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
             </svg>
           </button>
+          <label class="sr-only" for="exportSamplingRate">書き出しサンプルレート</label>
+          <select id="exportSamplingRate" class="input input-toolbar" title="書き出しサンプルレート">
+            <option value="8000">8k</option>
+            <option value="11025">11k</option>
+            <option value="16000">16k</option>
+            <option value="22050">22k</option>
+            <option value="24000">24k</option>
+            <option value="32000">32k</option>
+            <option value="44100" selected>44.1k</option>
+            <option value="48000">48k</option>
+          </select>
           <button type="button" id="btnExport" class="btn btn-tool btn-tool-icon" title="書き出し">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
             </svg>
           </button>
+          </div>
         </div>
       </header>
 
-      <div class="workspace">
+      <div id="workspace" class="workspace">
         <section class="editor-pane">
-          <label class="sr-only" for="editor">台本（「。」ごとに分割して合成します）</label>
+          <label class="sr-only" for="editor">台本（句読点・スペース・改行で区切って合成します）</label>
           <div id="editorWrap" class="editor-wrap">
             <textarea
               id="editor"
               class="editor"
-              placeholder="ここに台本を入力…&#10;&#10;「。」ごとに文として分割され、それぞれ個別の音声設定を付けられます。各文の直下のバーをクリックすると設定パネルが開きます。"
+              placeholder="ここに台本を入力…"
               spellcheck="false"
             ></textarea>
             <div id="segmentMirror" class="segment-mirror" aria-hidden="true"></div>
-            <div id="segmentBars" class="segment-bars" role="tablist" aria-label="文ごとの設定"></div>
+          </div>
+
+          <div id="intonationDock" class="intonation-dock is-inactive" aria-label="イントネーション調整">
+            <header class="intonation-dock-head">
+              <button type="button" id="btnRegenerateProsody" class="btn-inline-link small">韻律を再取得</button>
+            </header>
+            <div id="intonationMoras" class="intonation-moras" role="group" aria-label="モーラごとのピッチ"></div>
           </div>
         </section>
 
-        <aside class="param-pane" aria-label="音声パラメータ">
-          <h2 class="param-heading">音声（プロジェクト既定）</h2>
-          <p class="param-hint muted small">各文の直下バーから個別設定できます</p>
-
-          <div class="field">
-            <div class="field-row">
-              <label for="speedScale">話速</label>
-              <span id="speedScaleVal" class="val">1.00</span>
+        <aside id="paramPane" class="param-pane is-inactive" aria-label="区切りの音声パラメータ">
+            <div class="field">
+              <div class="field-row">
+                <label for="speedScale">話速</label>
+                <span id="speedScaleVal" class="val">1.00</span>
+              </div>
+              <input type="range" id="speedScale" min="0.5" max="2" step="0.01" value="1" />
             </div>
-            <input type="range" id="speedScale" min="0.5" max="2" step="0.01" value="1" />
-          </div>
 
-          <div class="field">
-            <div class="field-row">
-              <label for="pitchScale">声の高さ</label>
-              <span id="pitchScaleVal" class="val">0.00</span>
+            <div class="field">
+              <div class="field-row">
+                <label for="pitchScale">声の高さ</label>
+                <span id="pitchScaleVal" class="val">0.00</span>
+              </div>
+              <input type="range" id="pitchScale" min="-0.15" max="0.15" step="0.01" value="0" />
             </div>
-            <input type="range" id="pitchScale" min="-0.15" max="0.15" step="0.01" value="0" />
-          </div>
 
-          <div class="field">
-            <label for="processingAlgorithm">ピッチ加工</label>
-            <select id="processingAlgorithm" class="input">
-              <option value="td-psola">TD-PSOLA</option>
-              <option value="world">WORLD</option>
-              <option value="resampling">リサンプリング</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <div class="field-row">
-              <label for="intonationScale">抑揚</label>
-              <span id="intonationScaleVal" class="val">1.00</span>
+            <div class="field">
+              <label for="processingAlgorithm">ピッチ加工</label>
+              <select id="processingAlgorithm" class="input">
+                <option value="td-psola">TD-PSOLA</option>
+                <option value="world">WORLD</option>
+                <option value="resampling">リサンプリング</option>
+              </select>
             </div>
-            <input type="range" id="intonationScale" min="0" max="2" step="0.01" value="1" />
-          </div>
 
-          <div class="field">
-            <div class="field-row">
-              <label for="volumeScale">音量</label>
-              <span id="volumeScaleVal" class="val">1.00</span>
+            <div class="field">
+              <div class="field-row">
+                <label for="intonationScale">抑揚</label>
+                <span id="intonationScaleVal" class="val">1.00</span>
+              </div>
+              <input type="range" id="intonationScale" min="0" max="2" step="0.01" value="1" />
             </div>
-            <input type="range" id="volumeScale" min="0" max="2" step="0.01" value="1" />
-          </div>
 
-          <div class="field">
-            <div class="field-row">
-              <label for="prePhonemeLength">開始無音</label>
-              <span id="prePhonemeLengthVal" class="val">0.10</span>
+            <div class="field">
+              <div class="field-row">
+                <label for="volumeScale">音量</label>
+                <span id="volumeScaleVal" class="val">1.00</span>
+              </div>
+              <input type="range" id="volumeScale" min="0" max="2" step="0.01" value="1" />
             </div>
-            <input type="range" id="prePhonemeLength" min="0" max="1" step="0.01" value="0.1" />
-          </div>
 
-          <div class="field">
-            <div class="field-row">
-              <label for="postPhonemeLength">終了無音</label>
-              <span id="postPhonemeLengthVal" class="val">0.10</span>
+            <div class="field">
+              <div class="field-row">
+                <label for="prePhonemeLength">開始無音</label>
+                <span id="prePhonemeLengthVal" class="val">0.10</span>
+              </div>
+              <input type="range" id="prePhonemeLength" min="0" max="1" step="0.01" value="0.1" />
             </div>
-            <input type="range" id="postPhonemeLength" min="0" max="1" step="0.01" value="0.1" />
-          </div>
 
-          <div class="field">
-            <label for="outputSamplingRate">サンプルレート</label>
-            <select id="outputSamplingRate" class="input">
-              <option value="8000">8,000 Hz</option>
-              <option value="11025">11,025 Hz</option>
-              <option value="16000">16,000 Hz</option>
-              <option value="22050">22,050 Hz</option>
-              <option value="24000" selected>24,000 Hz</option>
-              <option value="32000">32,000 Hz</option>
-              <option value="44100">44,100 Hz</option>
-              <option value="48000">48,000 Hz</option>
-            </select>
-          </div>
+            <div class="field">
+              <div class="field-row">
+                <label for="postPhonemeLength">終了無音</label>
+                <span id="postPhonemeLengthVal" class="val">0.10</span>
+              </div>
+              <input type="range" id="postPhonemeLength" min="0" max="1" step="0.01" value="0.1" />
+            </div>
+
+            <button type="button" id="btnSegmentParamReset" class="btn btn-sentence-reset">既定値に戻す</button>
         </aside>
       </div>
     </main>
-  </div>
-
-  <div id="sentenceParamFloat" class="sentence-param-float hidden" role="dialog" aria-modal="true" aria-labelledby="sentenceParamFloatTitle">
-    <header class="sentence-param-float-head">
-      <div class="sentence-param-float-head-text">
-        <h2 id="sentenceParamFloatTitle" class="sentence-param-float-title">文の音声設定</h2>
-        <p id="sentenceParamFloatPreview" class="sentence-param-float-preview muted small"></p>
-      </div>
-      <button type="button" id="btnSentenceParamClose" class="btn-modal-close" aria-label="閉じる">×</button>
-    </header>
-    <div class="sentence-param-float-body">
-      <div class="field">
-        <div class="field-row">
-          <label for="floatSpeedScale">話速</label>
-          <span id="floatSpeedScaleVal" class="val">1.00</span>
-        </div>
-        <input type="range" id="floatSpeedScale" min="0.5" max="2" step="0.01" value="1" />
-      </div>
-      <div class="field">
-        <div class="field-row">
-          <label for="floatPitchScale">声の高さ</label>
-          <span id="floatPitchScaleVal" class="val">0.00</span>
-        </div>
-        <input type="range" id="floatPitchScale" min="-0.15" max="0.15" step="0.01" value="0" />
-      </div>
-      <div class="field">
-        <label for="floatProcessingAlgorithm">ピッチ加工</label>
-        <select id="floatProcessingAlgorithm" class="input">
-          <option value="td-psola">TD-PSOLA</option>
-          <option value="world">WORLD</option>
-          <option value="resampling">リサンプリング</option>
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-row">
-          <label for="floatIntonationScale">抑揚</label>
-          <span id="floatIntonationScaleVal" class="val">1.00</span>
-        </div>
-        <input type="range" id="floatIntonationScale" min="0" max="2" step="0.01" value="1" />
-      </div>
-      <div class="field">
-        <div class="field-row">
-          <label for="floatVolumeScale">音量</label>
-          <span id="floatVolumeScaleVal" class="val">1.00</span>
-        </div>
-        <input type="range" id="floatVolumeScale" min="0" max="2" step="0.01" value="1" />
-      </div>
-      <div class="field">
-        <div class="field-row">
-          <label for="floatPrePhonemeLength">開始無音</label>
-          <span id="floatPrePhonemeLengthVal" class="val">0.10</span>
-        </div>
-        <input type="range" id="floatPrePhonemeLength" min="0" max="1" step="0.01" value="0.1" />
-      </div>
-      <div class="field">
-        <div class="field-row">
-          <label for="floatPostPhonemeLength">終了無音</label>
-          <span id="floatPostPhonemeLengthVal" class="val">0.10</span>
-        </div>
-        <input type="range" id="floatPostPhonemeLength" min="0" max="1" step="0.01" value="0.1" />
-      </div>
-      <div class="field">
-        <label for="floatOutputSamplingRate">サンプルレート</label>
-        <select id="floatOutputSamplingRate" class="input">
-          <option value="8000">8,000 Hz</option>
-          <option value="11025">11,025 Hz</option>
-          <option value="16000">16,000 Hz</option>
-          <option value="22050">22,050 Hz</option>
-          <option value="24000" selected>24,000 Hz</option>
-          <option value="32000">32,000 Hz</option>
-          <option value="44100">44,100 Hz</option>
-          <option value="48000">48,000 Hz</option>
-        </select>
-      </div>
-      <button type="button" id="btnSentenceParamReset" class="btn btn-sentence-reset">プロジェクト既定に戻す</button>
-    </div>
   </div>
 
   <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>

@@ -8,12 +8,17 @@
     volumeScale: 1,
     prePhonemeLength: 0.1,
     postPhonemeLength: 0.1,
-    outputSamplingRate: 24000,
     processingAlgorithm: 'td-psola',
   };
 
+  const PLAYBACK_SAMPLE_RATE = 44100;
+  const EXPORT_SAMPLE_RATE_DEFAULT = 44100;
+
   const GAP_SILENCE_SEC = 0.28;
   const DEFAULT_API_BASE = 'http://127.0.0.1:50032';
+  const MORA_PITCH_DEFAULT = 6;
+  const MORA_PITCH_MIN = 3;
+  const MORA_PITCH_MAX = 9;
 
   /**
    * @param {string} url
@@ -51,6 +56,7 @@
     projectList: document.getElementById('projectList'),
     btnNewProject: document.getElementById('btnNewProject'),
     projectTitle: document.getElementById('projectTitle'),
+    projectTitleInput: document.getElementById('projectTitleInput'),
     editor: document.getElementById('editor'),
     btnUndo: document.getElementById('btnUndo'),
     btnRedo: document.getElementById('btnRedo'),
@@ -58,7 +64,7 @@
     btnExport: document.getElementById('btnExport'),
     processingAlgorithm: document.getElementById('processingAlgorithm'),
     toast: document.getElementById('toast'),
-    outputSamplingRate: document.getElementById('outputSamplingRate'),
+    exportSamplingRate: document.getElementById('exportSamplingRate'),
     speedScale: document.getElementById('speedScale'),
     pitchScale: document.getElementById('pitchScale'),
     intonationScale: document.getElementById('intonationScale'),
@@ -82,25 +88,12 @@
     engineStatusText: document.getElementById('engineStatusText'),
     editorWrap: document.getElementById('editorWrap'),
     segmentMirror: document.getElementById('segmentMirror'),
-    segmentBars: document.getElementById('segmentBars'),
-    sentenceParamFloat: document.getElementById('sentenceParamFloat'),
-    sentenceParamFloatPreview: document.getElementById('sentenceParamFloatPreview'),
-    btnSentenceParamClose: document.getElementById('btnSentenceParamClose'),
-    btnSentenceParamReset: document.getElementById('btnSentenceParamReset'),
-    floatSpeedScale: document.getElementById('floatSpeedScale'),
-    floatPitchScale: document.getElementById('floatPitchScale'),
-    floatIntonationScale: document.getElementById('floatIntonationScale'),
-    floatVolumeScale: document.getElementById('floatVolumeScale'),
-    floatPrePhonemeLength: document.getElementById('floatPrePhonemeLength'),
-    floatPostPhonemeLength: document.getElementById('floatPostPhonemeLength'),
-    floatOutputSamplingRate: document.getElementById('floatOutputSamplingRate'),
-    floatProcessingAlgorithm: document.getElementById('floatProcessingAlgorithm'),
-    floatSpeedScaleVal: document.getElementById('floatSpeedScaleVal'),
-    floatPitchScaleVal: document.getElementById('floatPitchScaleVal'),
-    floatIntonationScaleVal: document.getElementById('floatIntonationScaleVal'),
-    floatVolumeScaleVal: document.getElementById('floatVolumeScaleVal'),
-    floatPrePhonemeLengthVal: document.getElementById('floatPrePhonemeLengthVal'),
-    floatPostPhonemeLengthVal: document.getElementById('floatPostPhonemeLengthVal'),
+    workspace: document.getElementById('workspace'),
+    paramPane: document.getElementById('paramPane'),
+    btnSegmentParamReset: document.getElementById('btnSegmentParamReset'),
+    btnRegenerateProsody: document.getElementById('btnRegenerateProsody'),
+    intonationDock: document.getElementById('intonationDock'),
+    intonationMoras: document.getElementById('intonationMoras'),
   };
 
   els.btnPlayIconPlay = els.btnPlay.querySelector('.icon-play');
@@ -121,7 +114,9 @@
 
   /** @typedef {Record<string, number|string>} ParamSet */
   /** @typedef {{ key: string, start: number, end: number, text: string, index: number }} SentenceRange */
-  /** @typedef {{ id: string, title: string, text: string, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, updatedAt: string }} Project */
+  /** @typedef {{ phoneme: string, hira: string, accent: number, pitch?: number }} SegmentMora */
+  /** @typedef {{ text: string, detail: SegmentMora[][], loading?: boolean }} SegmentProsody */
+  /** @typedef {{ id: string, title: string, text: string, titleEdited?: boolean, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, sentenceProsodyByKey?: Record<string, SegmentProsody>, updatedAt: string }} Project */
 
   /** @type {Project[]} */
   let projects = [];
@@ -129,15 +124,20 @@
   let activeId = null;
   /** @type {string | null} */
   let activeSentenceKey = null;
-  /** @type {string | null} */
-  let floatSentenceKey = null;
   /** @type {SentenceRange[]} */
   let lastSentenceRanges = [];
   /** @type {ReturnType<typeof setTimeout> | null} */
   let saveTimer = null;
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let prosodyScheduleTimer = null;
+  /** @type {Map<string, number>} */
+  const prosodyFetchGeneration = new Map();
 
   /** @type {{ word: string, yomi: string, accent: number }[]} */
   let dictionaryEntries = [];
+
+  /** @type {number} */
+  let exportSamplingRate = EXPORT_SAMPLE_RATE_DEFAULT;
 
   function showToast(msg, ms = 3400) {
     els.toast.textContent = msg;
@@ -164,7 +164,31 @@
   }
 
   function snapshotParams() {
-    return snapshotParamsFromControls(mainParamControls);
+    return snapshotParamsFromControls(segmentParamControls);
+  }
+
+  /** 句読点（区切りに含める） */
+  const SEGMENT_PUNCT_RE =
+    /[。、．.,!?！？…：:；;「」『』【】()（）\[\]{}'"‘’“”〜～]/u;
+
+  /** @param {string} ch */
+  function isSegmentPunctuation(ch) {
+    return SEGMENT_PUNCT_RE.test(ch);
+  }
+
+  /** @param {string} ch */
+  function isSegmentWhitespace(ch) {
+    return ch === ' ' || ch === '\t' || ch === '\u3000';
+  }
+
+  /** @param {string} ch */
+  function isSegmentNewline(ch) {
+    return ch === '\n' || ch === '\r';
+  }
+
+  /** @param {string} ch */
+  function isSegmentBreakChar(ch) {
+    return isSegmentPunctuation(ch) || isSegmentWhitespace(ch) || isSegmentNewline(ch);
   }
 
   /** @param {ParamSet} a @param {ParamSet} b */
@@ -176,7 +200,6 @@
       'volumeScale',
       'prePhonemeLength',
       'postPhonemeLength',
-      'outputSamplingRate',
       'processingAlgorithm',
     ];
     for (const k of keys) {
@@ -187,7 +210,9 @@
 
   /** @param {ParamSet} params */
   function cloneParams(params) {
-    return { ...PARAM_DEFAULTS, ...params };
+    const merged = { ...PARAM_DEFAULTS, ...params };
+    delete merged.outputSamplingRate;
+    return merged;
   }
 
   /**
@@ -201,7 +226,6 @@
       volumeScale: Number(root.volumeScale.value),
       prePhonemeLength: Number(root.prePhonemeLength.value),
       postPhonemeLength: Number(root.postPhonemeLength.value),
-      outputSamplingRate: Number(root.outputSamplingRate.value),
       processingAlgorithm: root.processingAlgorithm.value,
     };
   }
@@ -218,7 +242,6 @@
     root.volumeScale.value = String(par.volumeScale);
     root.prePhonemeLength.value = String(par.prePhonemeLength);
     root.postPhonemeLength.value = String(par.postPhonemeLength);
-    root.outputSamplingRate.value = String(coerceSampleRate(par.outputSamplingRate ?? PARAM_DEFAULTS.outputSamplingRate));
     root.processingAlgorithm.value = String(par.processingAlgorithm);
   }
 
@@ -235,14 +258,13 @@
     root.postPhonemeLengthVal.textContent = fmt(root.postPhonemeLength.value);
   }
 
-  const mainParamControls = {
+  const segmentParamControls = {
     speedScale: els.speedScale,
     pitchScale: els.pitchScale,
     intonationScale: els.intonationScale,
     volumeScale: els.volumeScale,
     prePhonemeLength: els.prePhonemeLength,
     postPhonemeLength: els.postPhonemeLength,
-    outputSamplingRate: els.outputSamplingRate,
     processingAlgorithm: els.processingAlgorithm,
     speedScaleVal: els.speedScaleVal,
     pitchScaleVal: els.pitchScaleVal,
@@ -252,30 +274,54 @@
     postPhonemeLengthVal: els.postPhonemeLengthVal,
   };
 
-  const floatParamControls = {
-    speedScale: els.floatSpeedScale,
-    pitchScale: els.floatPitchScale,
-    intonationScale: els.floatIntonationScale,
-    volumeScale: els.floatVolumeScale,
-    prePhonemeLength: els.floatPrePhonemeLength,
-    postPhonemeLength: els.floatPostPhonemeLength,
-    outputSamplingRate: els.floatOutputSamplingRate,
-    processingAlgorithm: els.floatProcessingAlgorithm,
-    speedScaleVal: els.floatSpeedScaleVal,
-    pitchScaleVal: els.floatPitchScaleVal,
-    intonationScaleVal: els.floatIntonationScaleVal,
-    volumeScaleVal: els.floatVolumeScaleVal,
-    prePhonemeLengthVal: els.floatPrePhonemeLengthVal,
-    postPhonemeLengthVal: els.floatPostPhonemeLengthVal,
-  };
+  function deriveDefaultTitle(text) {
+    const flat = text.replace(/\s+/g, ' ').trim();
+    if (!flat) return '無題';
+    return flat.length > 10 ? flat.slice(0, 10) : flat;
+  }
 
-  function deriveTitle(text) {
-    const line = text
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .find(Boolean);
-    if (!line) return '無題';
-    return line.length > 42 ? `${line.slice(0, 42)}…` : line;
+  /**
+   * @param {Project} project
+   */
+  function syncTitleFromTextIfAuto(project) {
+    if (project.titleEdited) return;
+    project.title = deriveDefaultTitle(project.text || '');
+  }
+
+  function renderProjectTitleDisplay() {
+    const p = activeProject();
+    els.projectTitle.textContent = p?.title || '無題';
+  }
+
+  function startProjectTitleEdit() {
+    const p = activeProject();
+    if (!p) return;
+    els.projectTitleInput.value = p.title || '無題';
+    els.projectTitle.hidden = true;
+    els.projectTitleInput.hidden = false;
+    els.projectTitleInput.focus();
+    els.projectTitleInput.select();
+  }
+
+  function commitProjectTitleEdit() {
+    if (els.projectTitleInput.hidden) return;
+    const p = activeProject();
+    if (!p) return;
+    const next = els.projectTitleInput.value.trim() || '無題';
+    p.title = next;
+    p.titleEdited = true;
+    els.projectTitleInput.hidden = true;
+    els.projectTitle.hidden = false;
+    renderProjectTitleDisplay();
+    renderProjectList();
+    bumpActiveUpdatedAt();
+    schedulePersist();
+  }
+
+  function cancelProjectTitleEdit() {
+    els.projectTitleInput.hidden = true;
+    els.projectTitle.hidden = false;
+    renderProjectTitleDisplay();
   }
 
   function bumpActiveUpdatedAt() {
@@ -308,10 +354,15 @@
     for (const raw of list) {
       const p = /** @type {Project} */ (raw);
       if (!p.updatedAt) p.updatedAt = now;
-      if (p.params && p.params.outputSamplingRate != null) {
-        p.params.outputSamplingRate = coerceSampleRate(p.params.outputSamplingRate);
+      if (p.params) delete p.params.outputSamplingRate;
+      if (p.sentenceParamsByKey) {
+        for (const k of Object.keys(p.sentenceParamsByKey)) {
+          delete p.sentenceParamsByKey[k].outputSamplingRate;
+        }
       }
       if (!Array.isArray(p.sentenceParams) && !p.sentenceParamsByKey) p.sentenceParamsByKey = {};
+      if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
+      if (p.titleEdited == null) p.titleEdited = false;
       migrateSentenceParamsForProject(p);
     }
   }
@@ -344,39 +395,60 @@
     let buf = '';
     let segStart = 0;
     let index = 0;
-    for (let i = 0; i < text.length; i++) {
-      buf += text[i];
-      if (text[i] === '。') {
-        const trimmed = buf.trim();
-        if (trimmed) {
-          const lead = buf.length - buf.trimStart().length;
-          const start = segStart + lead;
-          const end = i + 1;
-          ranges.push({
-            key: `s${start}`,
-            start,
-            end,
-            text: text.slice(start, end),
-            index: index++,
-          });
-        }
+
+    /** @param {number} breakEnd */
+    function flushSegment(breakEnd) {
+      const trimmed = buf.trim();
+      if (!trimmed) {
         buf = '';
-        segStart = i + 1;
+        segStart = breakEnd;
+        return;
       }
-    }
-    const tail = buf.trim();
-    if (tail) {
       const lead = buf.length - buf.trimStart().length;
       const start = segStart + lead;
+      const end = start + trimmed.length;
       ranges.push({
         key: `s${start}`,
         start,
-        end: text.length,
-        text: text.slice(start, text.length),
+        end,
+        text: text.slice(start, end),
         index: index++,
       });
+      buf = '';
+      segStart = breakEnd;
     }
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (isSegmentPunctuation(ch)) {
+        buf += ch;
+        flushSegment(i + 1);
+        continue;
+      }
+      if (isSegmentWhitespace(ch) || isSegmentNewline(ch)) {
+        flushSegment(i + 1);
+        while (i + 1 < text.length && (isSegmentWhitespace(text[i + 1]) || isSegmentNewline(text[i + 1]))) {
+          i += 1;
+        }
+        segStart = i + 1;
+        continue;
+      }
+      buf += ch;
+    }
+
+    flushSegment(text.length);
     return ranges;
+  }
+
+  /**
+   * @param {number} pos
+   * @param {SentenceRange[]} ranges
+   */
+  function findRangeAtCursor(pos, ranges) {
+    for (const r of ranges) {
+      if (pos >= r.start && pos < r.end) return r;
+    }
+    return null;
   }
 
   /**
@@ -416,7 +488,7 @@
    * @param {string} key
    */
   function getSentenceParams(project, key) {
-    if (!project) return cloneParams(snapshotParams());
+    if (!project) return cloneParams(PARAM_DEFAULTS);
     const base = cloneParams(project.params);
     const custom = project.sentenceParamsByKey?.[key];
     return custom ? cloneParams(custom) : base;
@@ -428,6 +500,341 @@
    */
   function hasCustomSentenceParams(project, key) {
     return !!(project?.sentenceParamsByKey?.[key]);
+  }
+
+  /**
+   * @param {SegmentMora[][]} detail
+   */
+  function cloneProsodyDetail(detail) {
+    return detail.map((phrase) =>
+      phrase.map((m) => ({
+        phoneme: m.phoneme,
+        hira: m.hira,
+        accent: m.accent,
+        pitch: Number.isFinite(m.pitch) ? m.pitch : MORA_PITCH_DEFAULT,
+      })),
+    );
+  }
+
+  /**
+   * @param {SegmentMora[][]} detail
+   */
+  function applyDefaultMoraPitches(detail) {
+    for (const phrase of detail) {
+      for (const m of phrase) {
+        if (!Number.isFinite(m.pitch)) m.pitch = MORA_PITCH_DEFAULT;
+      }
+    }
+  }
+
+  /**
+   * @param {number} hz
+   */
+  function hzToMoraPitch(hz) {
+    if (!Number.isFinite(hz) || hz < 50) return MORA_PITCH_DEFAULT;
+    const pitch = MORA_PITCH_DEFAULT + Math.log2(hz / 200);
+    return Math.max(MORA_PITCH_MIN, Math.min(MORA_PITCH_MAX, pitch));
+  }
+
+  /**
+   * @param {number[]} f0
+   * @param {number} wavStart
+   * @param {number} wavEnd
+   * @param {number} totalSamples
+   */
+  function medianF0InRange(f0, wavStart, wavEnd, totalSamples) {
+    if (!f0.length || totalSamples <= 0) return 0;
+    const i0 = Math.floor((wavStart / totalSamples) * f0.length);
+    const i1 = Math.min(f0.length - 1, Math.ceil((wavEnd / totalSamples) * f0.length));
+    const slice = f0.slice(i0, i1 + 1).filter((v) => v > 50);
+    if (!slice.length) return 0;
+    slice.sort((a, b) => a - b);
+    return slice[Math.floor(slice.length / 2)];
+  }
+
+  /**
+   * @param {SegmentMora[][]} detail
+   * @param {{ hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[]} moraDurations
+   * @param {number[]} f0
+   */
+  function applyF0ToProsodyDetail(detail, moraDurations, f0) {
+    const flat = detail.flat();
+    let totalSamples = 1;
+    for (const md of moraDurations) {
+      const pp = md.phonemePitches;
+      if (!pp?.length) continue;
+      totalSamples = Math.max(totalSamples, pp[pp.length - 1].wavRange.end);
+    }
+    let moraIdx = 0;
+    for (const md of moraDurations) {
+      const hira = (md.hira || '').trim();
+      if (!hira || moraIdx >= flat.length) continue;
+      const pp = md.phonemePitches;
+      if (!pp?.length) continue;
+      const start = pp[0].wavRange.start;
+      const end = pp[pp.length - 1].wavRange.end;
+      flat[moraIdx].pitch = hzToMoraPitch(medianF0InRange(f0, start, end, totalSamples));
+      moraIdx += 1;
+    }
+  }
+
+  /**
+   * @param {string} text
+   */
+  async function fetchEstimateProsody(text) {
+    const res = await fetchWithTimeout(
+      `${DEFAULT_API_BASE}/v1/estimate_prosody`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      },
+      30000,
+    );
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new Error(errText || `韻律推定に失敗 (${res.status})`);
+    }
+    /** @type {{ detail?: SegmentMora[][] }} */
+    const data = await res.json();
+    if (!Array.isArray(data.detail) || data.detail.length === 0) {
+      throw new Error('韻律データが空です');
+    }
+    return cloneProsodyDetail(data.detail);
+  }
+
+  /**
+   * @param {string} text
+   * @param {SegmentMora[][]} detail
+   */
+  async function fetchPredictF0ForProsody(text, detail) {
+    if (!maitaStyleId) throw new Error('話者スタイルが未設定です');
+    const res = await fetchWithTimeout(
+      `${DEFAULT_API_BASE}/v1/predict_with_duration`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          speakerUuid: MAITA_UUID,
+          styleId: maitaStyleId,
+          text,
+          prosodyDetail: detail,
+          speedScale: 1,
+        }),
+      },
+      120000,
+    );
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new Error(errText || `ピッチ推定に失敗 (${res.status})`);
+    }
+    /** @type {{ wavBase64?: string, moraDurations?: unknown[] }} */
+    const pred = await res.json();
+    if (!pred.wavBase64 || !Array.isArray(pred.moraDurations)) {
+      throw new Error('ピッチ推定の応答が不正です');
+    }
+    const f0Res = await fetchWithTimeout(
+      `${DEFAULT_API_BASE}/v1/estimate_f0`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wavBase64: pred.wavBase64,
+          moraDurations: pred.moraDurations,
+        }),
+      },
+      60000,
+    );
+    if (!f0Res.ok) {
+      const errText = await f0Res.text().catch(() => f0Res.statusText);
+      throw new Error(errText || `F0 推定に失敗 (${f0Res.status})`);
+    }
+    /** @type {{ f0?: number[], moraDurations?: { hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[] }} */
+    const f0data = await f0Res.json();
+    if (!Array.isArray(f0data.f0)) throw new Error('F0 データが空です');
+    applyF0ToProsodyDetail(
+      detail,
+      /** @type {typeof f0data.moraDurations} */ (f0data.moraDurations || pred.moraDurations),
+      f0data.f0,
+    );
+  }
+
+  /**
+   * @param {Project} project
+   * @param {SentenceRange[]} prevRanges
+   * @param {SentenceRange[]} newRanges
+   */
+  function remapSentenceProsody(project, prevRanges, newRanges) {
+    const oldMap = project.sentenceProsodyByKey || {};
+    /** @type {Record<string, SegmentProsody>} */
+    const next = {};
+    const usedOldKeys = new Set();
+
+    for (const nr of newRanges) {
+      if (oldMap[nr.key] && oldMap[nr.key].text === nr.text) {
+        next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(oldMap[nr.key].detail) };
+        continue;
+      }
+      const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
+      if (prev && oldMap[prev.key] && oldMap[prev.key].text === nr.text) {
+        next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(oldMap[prev.key].detail) };
+        usedOldKeys.add(prev.key);
+      }
+    }
+    project.sentenceProsodyByKey = next;
+  }
+
+  /**
+   * @param {Project | null} project
+   * @param {string} key
+   */
+  function getSegmentProsody(project, key) {
+    return project?.sentenceProsodyByKey?.[key] ?? null;
+  }
+
+  function renderIntonationUI() {
+    const p = activeProject();
+    const key = activeSentenceKey;
+    els.intonationMoras.innerHTML = '';
+    els.intonationMoras.classList.remove('is-loading');
+
+    if (!p || key == null) return;
+
+    const entry = getSegmentProsody(p, key);
+    if (!entry) {
+      els.intonationMoras.classList.add('is-loading');
+      return;
+    }
+
+    if (entry.loading) {
+      els.intonationMoras.classList.add('is-loading');
+    } else {
+      els.intonationMoras.classList.remove('is-loading');
+    }
+
+    let moraIndex = 0;
+    for (const phrase of entry.detail) {
+      for (const m of phrase) {
+        const wrap = document.createElement('div');
+        wrap.className = 'intonation-mora';
+        wrap.dataset.moraIndex = String(moraIndex);
+
+        const pitchVal = document.createElement('span');
+        pitchVal.className = 'intonation-mora-pitch';
+        pitchVal.textContent = Number(m.pitch ?? MORA_PITCH_DEFAULT).toFixed(2);
+
+        const sliderWrap = document.createElement('div');
+        sliderWrap.className = 'intonation-mora-slider-wrap';
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.className = 'intonation-mora-slider';
+        slider.min = String(MORA_PITCH_MIN);
+        slider.max = String(MORA_PITCH_MAX);
+        slider.step = '0.05';
+        slider.value = String(m.pitch ?? MORA_PITCH_DEFAULT);
+        slider.disabled = !!entry.loading;
+        slider.setAttribute('aria-label', `${m.hira} のピッチ`);
+
+        const hira = document.createElement('span');
+        hira.className = 'intonation-mora-hira';
+        hira.textContent = m.hira;
+
+        const accent = document.createElement('span');
+        accent.className = 'intonation-mora-accent';
+        accent.textContent = `A${m.accent}`;
+
+        slider.addEventListener('input', () => {
+          const v = Number(slider.value);
+          m.pitch = v;
+          pitchVal.textContent = v.toFixed(2);
+          bumpActiveUpdatedAt();
+          schedulePersist();
+        });
+
+        sliderWrap.appendChild(slider);
+        wrap.append(pitchVal, sliderWrap, hira, accent);
+        els.intonationMoras.appendChild(wrap);
+        moraIndex += 1;
+      }
+    }
+
+  }
+
+  /**
+   * @param {Project} project
+   * @param {string} key
+   * @param {string} text
+   * @param {{ force?: boolean }} [opts]
+   */
+  async function ensureSegmentProsody(project, key, text, opts = {}) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    if (!project.sentenceProsodyByKey) project.sentenceProsodyByKey = {};
+    const existing = project.sentenceProsodyByKey[key];
+    if (opts.force && existing) delete project.sentenceProsodyByKey[key];
+    const cached = project.sentenceProsodyByKey[key];
+    if (!opts.force && cached && cached.text === trimmed && !cached.loading) return;
+
+    const gen = (prosodyFetchGeneration.get(key) || 0) + 1;
+    prosodyFetchGeneration.set(key, gen);
+
+    project.sentenceProsodyByKey[key] = {
+      text: trimmed,
+      detail: !opts.force && cached?.text === trimmed ? cloneProsodyDetail(cached.detail) : [],
+      loading: true,
+    };
+    if (activeSentenceKey === key) renderIntonationUI();
+
+    try {
+      const detail = await fetchEstimateProsody(trimmed);
+      applyDefaultMoraPitches(detail);
+
+      if (prosodyFetchGeneration.get(key) !== gen) return;
+      project.sentenceProsodyByKey[key] = { text: trimmed, detail, loading: true };
+      if (activeSentenceKey === key) renderIntonationUI();
+
+      if (maitaStyleId) {
+        try {
+          await fetchPredictF0ForProsody(trimmed, detail);
+        } catch (e) {
+          if (activeSentenceKey === key) {
+            showToast(e instanceof Error ? e.message : String(e));
+          }
+        }
+      }
+
+      if (prosodyFetchGeneration.get(key) !== gen) return;
+      project.sentenceProsodyByKey[key] = { text: trimmed, detail };
+      schedulePersist();
+    } catch (e) {
+      if (prosodyFetchGeneration.get(key) !== gen) return;
+      delete project.sentenceProsodyByKey[key];
+      if (activeSentenceKey === key) {
+        showToast(e instanceof Error ? e.message : String(e));
+      }
+    } finally {
+      if (prosodyFetchGeneration.get(key) === gen && activeSentenceKey === key) {
+        renderIntonationUI();
+      }
+    }
+  }
+
+  /**
+   * @param {Project} project
+   * @param {SentenceRange[]} ranges
+   */
+  function scheduleProsodyForRanges(project, ranges) {
+    clearTimeout(prosodyScheduleTimer);
+    prosodyScheduleTimer = setTimeout(() => {
+      for (const r of ranges) {
+        const entry = project.sentenceProsodyByKey?.[r.key];
+        if (!entry || entry.text !== r.text || entry.loading) {
+          void ensureSegmentProsody(project, r.key, r.text);
+        }
+      }
+    }, 420);
   }
 
   /**
@@ -447,11 +854,15 @@
    */
   function buildMirrorHtml(text, ranges) {
     if (!text) return '';
+    const p = activeProject();
     let html = '';
     let cursor = 0;
     for (const r of ranges) {
       if (cursor < r.start) html += escapeHtml(text.slice(cursor, r.start));
-      html += `<span class="segment-sent" data-key="${r.key}" data-index="${r.index}">${escapeHtml(text.slice(r.start, r.end))}</span>`;
+      const cls = ['segment-sent'];
+      if (activeSentenceKey === r.key) cls.push('active');
+      if (hasCustomSentenceParams(p, r.key)) cls.push('custom');
+      html += `<span class="${cls.join(' ')}" data-key="${r.key}" data-index="${r.index}">${escapeHtml(text.slice(r.start, r.end))}</span>`;
       cursor = r.end;
     }
     if (cursor < text.length) html += escapeHtml(text.slice(cursor));
@@ -475,24 +886,112 @@
 
   function syncEditorOverlayScroll() {
     const st = els.editor.scrollTop;
-    const transform = `translate3d(0, ${-st}px, 0)`;
-    els.segmentMirror.style.transform = transform;
-    els.segmentBars.style.transform = transform;
-    positionInlineBars();
+    els.segmentMirror.style.transform = `translate3d(0, ${-st}px, 0)`;
   }
 
-  function positionInlineBars() {
-    const wrapRect = els.editorWrap.getBoundingClientRect();
-    const mirrorSpans = els.segmentMirror.querySelectorAll('.segment-sent');
-    const bars = els.segmentBars.querySelectorAll('.segment-inline-bar');
-    mirrorSpans.forEach((span, i) => {
-      const bar = bars[i];
-      if (!bar) return;
-      const rect = span.getBoundingClientRect();
-      bar.style.left = `${rect.left - wrapRect.left}px`;
-      bar.style.top = `${rect.bottom - wrapRect.top + 3}px`;
-      bar.style.width = `${Math.max(rect.width, 28)}px`;
-    });
+  function updateSegmentPanelsVisibility() {
+    const hasSelection = activeSentenceKey != null;
+    els.paramPane.classList.toggle('is-inactive', !hasSelection);
+    els.intonationDock.classList.toggle('is-inactive', !hasSelection);
+  }
+
+  function getExportSamplingRate() {
+    return coerceSampleRate(Number(els.exportSamplingRate.value) || exportSamplingRate);
+  }
+
+  function applyExportSamplingRateToControl() {
+    els.exportSamplingRate.value = String(coerceSampleRate(exportSamplingRate));
+  }
+
+  async function persistAppSettings() {
+    exportSamplingRate = getExportSamplingRate();
+    await bridge.saveAppSettings({ exportSamplingRate });
+  }
+
+  async function loadAppSettingsFromDisk() {
+    try {
+      const blob = await bridge.loadAppSettings();
+      if (blob && blob.exportSamplingRate != null) {
+        exportSamplingRate = coerceSampleRate(blob.exportSamplingRate);
+      }
+    } catch (_) {
+      exportSamplingRate = EXPORT_SAMPLE_RATE_DEFAULT;
+    }
+    applyExportSamplingRateToControl();
+  }
+
+  function saveActiveSegmentParams() {
+    if (activeSentenceKey == null) return;
+    const p = activeProject();
+    if (!p) return;
+    if (!p.sentenceParamsByKey) p.sentenceParamsByKey = {};
+    const saved = snapshotParamsFromControls(segmentParamControls);
+    const base = cloneParams(p.params);
+    if (paramsEqual(saved, base)) {
+      delete p.sentenceParamsByKey[activeSentenceKey];
+    } else {
+      p.sentenceParamsByKey[activeSentenceKey] = cloneParams(saved);
+    }
+    bumpActiveUpdatedAt();
+    schedulePersist();
+  }
+
+  function clearSentenceSelection() {
+    if (activeSentenceKey != null) saveActiveSegmentParams();
+    activeSentenceKey = null;
+    updateSegmentPanelsVisibility();
+    renderIntonationUI();
+    renderSegmentOverlay();
+  }
+
+  /**
+   * @param {string} key
+   * @param {string} previewText
+   */
+  function selectSentence(key, previewText) {
+    if (activeSentenceKey != null && activeSentenceKey !== key) {
+      saveActiveSegmentParams();
+    }
+    const p = activeProject();
+    if (!p) return;
+
+    activeSentenceKey = key;
+    const params = getSentenceParams(p, key);
+    applyParamsToControls(segmentParamControls, params);
+    refreshValueLabelsFor(segmentParamControls);
+    updateSegmentPanelsVisibility();
+    renderIntonationUI();
+    const range = sentenceRangesFromText(els.editor.value).find((r) => r.key === key);
+    if (range) void ensureSegmentProsody(p, key, range.text);
+    renderSegmentOverlay();
+  }
+
+  function resetActiveSegmentParams() {
+    if (activeSentenceKey == null) return;
+    const p = activeProject();
+    if (!p) return;
+    if (p.sentenceParamsByKey) delete p.sentenceParamsByKey[activeSentenceKey];
+    applyParamsToControls(segmentParamControls, p.params);
+    refreshValueLabelsFor(segmentParamControls);
+    if (p.sentenceProsodyByKey) delete p.sentenceProsodyByKey[activeSentenceKey];
+    const range = sentenceRangesFromText(els.editor.value).find((r) => r.key === activeSentenceKey);
+    if (range) void ensureSegmentProsody(p, activeSentenceKey, range.text, { force: true });
+    bumpActiveUpdatedAt();
+    schedulePersist();
+    renderSegmentOverlay();
+    renderIntonationUI();
+  }
+
+  function syncSelectionFromEditorCursor() {
+    const text = els.editor.value;
+    const ranges = sentenceRangesFromText(text);
+    const pos = els.editor.selectionStart;
+    const r = findRangeAtCursor(pos, ranges);
+    if (r) {
+      if (r.key !== activeSentenceKey) selectSentence(r.key, r.text);
+      return;
+    }
+    if (activeSentenceKey != null) clearSentenceSelection();
   }
 
   function renderSegmentOverlay() {
@@ -502,133 +1001,24 @@
     const ranges = sentenceRangesFromText(text);
 
     if (p) {
-      if (lastSentenceRanges.length) remapSentenceParams(p, lastSentenceRanges, ranges);
-      else migrateSentenceParamsForProject(p);
+      if (lastSentenceRanges.length) {
+        remapSentenceParams(p, lastSentenceRanges, ranges);
+        remapSentenceProsody(p, lastSentenceRanges, ranges);
+      } else {
+        migrateSentenceParamsForProject(p);
+      }
+      if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
+      scheduleProsodyForRanges(p, ranges);
     }
     lastSentenceRanges = ranges;
 
-    if (floatSentenceKey != null && !ranges.some((r) => r.key === floatSentenceKey)) {
-      closeSentenceParamFloat();
+    if (activeSentenceKey != null && !ranges.some((r) => r.key === activeSentenceKey)) {
+      activeSentenceKey = null;
+      updateSegmentPanelsVisibility();
     }
 
     els.segmentMirror.innerHTML = buildMirrorHtml(text, ranges);
-    els.segmentBars.innerHTML = '';
-
-    if (!text || ranges.length === 0) {
-      activeSentenceKey = null;
-      return;
-    }
-
-    for (const r of ranges) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'segment-inline-bar';
-      btn.dataset.key = r.key;
-      if (activeSentenceKey === r.key) btn.classList.add('active');
-      if (hasCustomSentenceParams(p, r.key)) btn.classList.add('custom');
-      btn.setAttribute('role', 'tab');
-      btn.setAttribute('aria-selected', activeSentenceKey === r.key ? 'true' : 'false');
-      const preview = r.text.length > 48 ? `${r.text.slice(0, 48)}…` : r.text;
-      btn.title = preview;
-      btn.setAttribute('aria-label', `文 ${r.index + 1}: ${preview}`);
-      btn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        openSentenceParamFloat(r.key, r.index, r.text, btn.getBoundingClientRect());
-      });
-      els.segmentBars.appendChild(btn);
-    }
-
     syncEditorOverlayScroll();
-  }
-
-  function saveFloatParamsToProject() {
-    if (floatSentenceKey == null) return;
-    const p = activeProject();
-    if (!p) return;
-    if (!p.sentenceParamsByKey) p.sentenceParamsByKey = {};
-    const saved = snapshotParamsFromControls(floatParamControls);
-    const base = cloneParams(p.params);
-    if (paramsEqual(saved, base)) {
-      delete p.sentenceParamsByKey[floatSentenceKey];
-    } else {
-      p.sentenceParamsByKey[floatSentenceKey] = cloneParams(saved);
-    }
-    bumpActiveUpdatedAt();
-    schedulePersist();
-    updateInlineBarStates();
-  }
-
-  function updateInlineBarStates() {
-    const p = activeProject();
-    for (const btn of els.segmentBars.querySelectorAll('.segment-inline-bar')) {
-      const key = btn.dataset.key;
-      if (!key) continue;
-      btn.classList.toggle('active', key === activeSentenceKey);
-      btn.classList.toggle('custom', hasCustomSentenceParams(p, key));
-      btn.setAttribute('aria-selected', key === activeSentenceKey ? 'true' : 'false');
-    }
-  }
-
-  /**
-   * @param {string} key
-   * @param {number} index
-   * @param {string} previewText
-   * @param {DOMRect} anchorRect
-   */
-  function openSentenceParamFloat(key, index, previewText, anchorRect) {
-    if (floatSentenceKey != null && floatSentenceKey !== key) {
-      saveFloatParamsToProject();
-    }
-    const p = activeProject();
-    if (!p) return;
-
-    floatSentenceKey = key;
-    activeSentenceKey = key;
-    const params = getSentenceParams(p, key);
-    applyParamsToControls(floatParamControls, params);
-    refreshValueLabelsFor(floatParamControls);
-
-    els.sentenceParamFloatPreview.textContent =
-      previewText.length > 56 ? `${previewText.slice(0, 56)}…` : previewText;
-
-    els.sentenceParamFloat.classList.remove('hidden');
-    positionSentenceParamFloat(anchorRect);
-    renderSegmentOverlay();
-  }
-
-  /** @param {DOMRect} anchorRect */
-  function positionSentenceParamFloat(anchorRect) {
-    const panel = els.sentenceParamFloat;
-    const pw = panel.offsetWidth;
-    const ph = panel.offsetHeight;
-    let left = anchorRect.left + anchorRect.width / 2 - pw / 2;
-    let top = anchorRect.bottom + 10;
-    if (top + ph > window.innerHeight - 12) {
-      top = anchorRect.top - ph - 10;
-    }
-    left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
-    top = Math.max(12, Math.min(top, window.innerHeight - ph - 12));
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
-  }
-
-  function closeSentenceParamFloat() {
-    saveFloatParamsToProject();
-    floatSentenceKey = null;
-    els.sentenceParamFloat.classList.add('hidden');
-    renderSegmentOverlay();
-  }
-
-  function resetFloatSentenceParams() {
-    if (floatSentenceKey == null) return;
-    const p = activeProject();
-    if (!p?.sentenceParamsByKey) return;
-    delete p.sentenceParamsByKey[floatSentenceKey];
-    applyParamsToControls(floatParamControls, p.params);
-    refreshValueLabelsFor(floatParamControls);
-    bumpActiveUpdatedAt();
-    schedulePersist();
-    renderSegmentOverlay();
   }
 
   function activeProject() {
@@ -638,10 +1028,10 @@
   function syncActiveProjectFromUi() {
     const p = activeProject();
     if (!p) return;
+    if (activeSentenceKey != null) saveActiveSegmentParams();
     p.text = els.editor.value;
-    p.title = deriveTitle(p.text);
-    p.params = snapshotParams();
-    els.projectTitle.textContent = p.title;
+    syncTitleFromTextIfAuto(p);
+    renderProjectTitleDisplay();
     renderProjectList();
     renderSegmentOverlay();
   }
@@ -710,7 +1100,7 @@
 
   function selectProject(id) {
     if (activeId !== id) {
-      closeSentenceParamFloat();
+      if (activeSentenceKey != null) saveActiveSegmentParams();
       syncActiveProjectFromUi();
     }
     activeId = id;
@@ -720,9 +1110,8 @@
     if (!p) return;
     migrateSentenceParamsForProject(p);
     els.editor.value = p.text || '';
-    applyParamsToControls(mainParamControls, p.params);
-    refreshValueLabels();
-    els.projectTitle.textContent = p.title || '無題';
+    updateSegmentPanelsVisibility();
+    renderProjectTitleDisplay();
     renderProjectList();
     renderSegmentOverlay();
     schedulePersist();
@@ -738,6 +1127,7 @@
       text: '',
       params: { ...PARAM_DEFAULTS },
       sentenceParamsByKey: {},
+      sentenceProsodyByKey: {},
       updatedAt: now,
     };
     projects.unshift(p);
@@ -747,7 +1137,7 @@
   }
 
   function refreshValueLabels() {
-    refreshValueLabelsFor(mainParamControls);
+    refreshValueLabelsFor(segmentParamControls);
   }
 
   /**
@@ -854,24 +1244,29 @@
   /**
    * @param {string} textLine
    * @param {ParamSet} [paramsOverride]
+   * @param {SegmentProsody | null} [prosodyOverride]
    */
-  async function synthesizeLine(textLine, paramsOverride) {
+  async function synthesizeLine(textLine, paramsOverride, prosodyOverride = null, outputSamplingRate = PLAYBACK_SAMPLE_RATE) {
     if (!maitaStyleId) {
       throw new Error('COEIROINK から琵音マイタのスタイルを取得できません。左下の接続状態を確認してエンジンを起動してから再度お試しください。');
     }
     const url = `${DEFAULT_API_BASE}/v1/synthesis`;
     const params = paramsOverride ?? snapshotParams();
+    const detail = prosodyOverride?.detail?.length
+      ? cloneProsodyDetail(prosodyOverride.detail)
+      : [];
     const body = {
       speakerUuid: MAITA_UUID,
       styleId: maitaStyleId,
       text: textLine,
+      prosodyDetail: detail,
       speedScale: params.speedScale,
       volumeScale: params.volumeScale,
       pitchScale: params.pitchScale,
       intonationScale: params.intonationScale,
       prePhonemeLength: params.prePhonemeLength,
       postPhonemeLength: params.postPhonemeLength,
-      outputSamplingRate: params.outputSamplingRate,
+      outputSamplingRate: coerceSampleRate(outputSamplingRate),
       processingAlgorithm: params.processingAlgorithm,
     };
     const res = await fetch(url, {
@@ -886,18 +1281,23 @@
     return res.arrayBuffer();
   }
 
-  async function buildFullUtterance() {
-    saveFloatParamsToProject();
+  async function buildFullUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE) {
+    saveActiveSegmentParams();
     const p = activeProject();
     const ranges = sentenceRangesFromText(els.editor.value);
     if (ranges.length === 0) {
-      throw new Error('読み上げるテキストがありません（「。」で区切った文が必要です）。');
+      throw new Error('読み上げるテキストがありません（句読点・スペース・改行で区切られた部分が必要です）。');
     }
     /** @type {ArrayBuffer[]} */
     const parts = [];
     for (const r of ranges) {
       const params = getSentenceParams(p, r.key);
-      const wav = await synthesizeLine(r.text, params);
+      let prosody = getSegmentProsody(p, r.key);
+      if (!prosody || prosody.text !== r.text.trim()) {
+        await ensureSegmentProsody(p, r.key, r.text);
+        prosody = getSegmentProsody(p, r.key);
+      }
+      const wav = await synthesizeLine(r.text, params, prosody, outputSamplingRate);
       parts.push(wav);
     }
     return concatWavBuffers(parts);
@@ -1070,7 +1470,7 @@
     try {
       stopPlayback();
 
-      const buf = await buildFullUtterance();
+      const buf = await buildFullUtterance(PLAYBACK_SAMPLE_RATE);
       const blob = new Blob([buf], { type: 'audio/wav' });
       const url = URL.createObjectURL(blob);
       currentBlobUrl = url;
@@ -1095,8 +1495,10 @@
   async function exportAudio() {
     els.btnExport.disabled = true;
     try {
-      const buf = await buildFullUtterance();
-      const safe = deriveTitle(els.editor.value).replace(/[/\\?%*:|"<>]/g, '_');
+      await persistAppSettings();
+      const buf = await buildFullUtterance(getExportSamplingRate());
+      const p = activeProject();
+      const safe = (p?.title || 'export').replace(/[/\\?%*:|"<>]/g, '_');
       const name = `${safe || 'export'}.wav`;
       const filePath = await bridge.saveWavDialog(name);
       if (!filePath) return;
@@ -1234,6 +1636,18 @@
   }
 
   function bindEvents() {
+    els.projectTitle.addEventListener('click', () => startProjectTitleEdit());
+    els.projectTitleInput.addEventListener('blur', () => commitProjectTitleEdit());
+    els.projectTitleInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        commitProjectTitleEdit();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        cancelProjectTitleEdit();
+      }
+    });
+
     els.btnNewProject.addEventListener('click', () => newProject());
     els.btnUndo.addEventListener('click', () => {
       els.editor.focus();
@@ -1254,6 +1668,9 @@
 
     els.editor.addEventListener('scroll', () => syncEditorOverlayScroll());
 
+    els.editor.addEventListener('click', () => syncSelectionFromEditorCursor());
+    els.editor.addEventListener('keyup', () => syncSelectionFromEditorCursor());
+
     const paramIds = [
       'speedScale',
       'pitchScale',
@@ -1264,68 +1681,44 @@
     ];
     for (const id of paramIds) {
       els[id].addEventListener('input', () => {
+        if (activeSentenceKey == null) return;
         refreshValueLabels();
-        syncActiveProjectFromUi();
-        bumpActiveUpdatedAt();
-        schedulePersist();
+        saveActiveSegmentParams();
+        renderSegmentOverlay();
       });
     }
 
-    els.outputSamplingRate.addEventListener('change', () => {
-      syncActiveProjectFromUi();
-      bumpActiveUpdatedAt();
-      schedulePersist();
-    });
+    els.exportSamplingRate.addEventListener('change', () => void persistAppSettings());
 
     els.processingAlgorithm.addEventListener('change', () => {
-      syncActiveProjectFromUi();
-      bumpActiveUpdatedAt();
-      schedulePersist();
+      if (activeSentenceKey == null) return;
+      saveActiveSegmentParams();
+      renderSegmentOverlay();
     });
 
-    const floatParamIds = [
-      'floatSpeedScale',
-      'floatPitchScale',
-      'floatIntonationScale',
-      'floatVolumeScale',
-      'floatPrePhonemeLength',
-      'floatPostPhonemeLength',
-    ];
-    for (const id of floatParamIds) {
-      els[id].addEventListener('input', () => {
-        refreshValueLabelsFor(floatParamControls);
-        saveFloatParamsToProject();
+    els.btnSegmentParamReset.addEventListener('click', () => resetActiveSegmentParams());
+
+    els.btnRegenerateProsody.addEventListener('click', () => {
+      if (activeSentenceKey == null) return;
+      const p = activeProject();
+      if (!p) return;
+      const range = sentenceRangesFromText(els.editor.value).find((r) => r.key === activeSentenceKey);
+      if (!range) return;
+      els.btnRegenerateProsody.disabled = true;
+      void ensureSegmentProsody(p, activeSentenceKey, range.text, { force: true }).finally(() => {
+        els.btnRegenerateProsody.disabled = activeSentenceKey == null;
       });
-    }
-    els.floatOutputSamplingRate.addEventListener('change', () => saveFloatParamsToProject());
-    els.floatProcessingAlgorithm.addEventListener('change', () => saveFloatParamsToProject());
-
-    els.btnSentenceParamClose.addEventListener('click', () => closeSentenceParamFloat());
-    els.btnSentenceParamReset.addEventListener('click', () => resetFloatSentenceParams());
-
-    els.sentenceParamFloat.addEventListener('click', (ev) => ev.stopPropagation());
-
-    document.addEventListener('click', (ev) => {
-      if (floatSentenceKey == null) return;
-      const t = /** @type {Element} */ (ev.target);
-      if (els.sentenceParamFloat.contains(t)) return;
-      if (t.closest('.segment-inline-bar')) return;
-      closeSentenceParamFloat();
     });
 
     document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && floatSentenceKey != null) {
-        closeSentenceParamFloat();
+      if (ev.key === 'Escape' && activeSentenceKey != null) {
+        clearSentenceSelection();
       }
     });
 
     window.addEventListener('resize', () => {
       resizeWaveformCanvas();
       renderSegmentOverlay();
-      if (floatSentenceKey != null) {
-        const activeBtn = els.segmentBars.querySelector('.segment-inline-bar.active');
-        if (activeBtn) positionSentenceParamFloat(activeBtn.getBoundingClientRect());
-      }
     });
 
     els.btnDictionary.addEventListener('click', () => openDictionaryModal());
@@ -1353,10 +1746,12 @@
 
   async function boot() {
     bindEvents();
+    updateSegmentPanelsVisibility();
     refreshValueLabels();
     resizeWaveformCanvas();
 
     await loadDictionaryFromDisk();
+    await loadAppSettingsFromDisk();
 
     const blob = await bridge.loadProjects();
     if (blob && Array.isArray(blob.projects) && blob.projects.length > 0) {
@@ -1372,6 +1767,7 @@
           text: '',
           params: { ...PARAM_DEFAULTS },
           sentenceParamsByKey: {},
+          sentenceProsodyByKey: {},
           updatedAt: now,
         },
       ];
