@@ -3,7 +3,6 @@ const { registerDictionaryIpc } = require('./dictionary');
 const { registerDialogIpc } = require('./dialogs');
 const { registerFsIpc } = require('./fs');
 const { registerNativeIpc } = require('./native');
-const { registerEngineIpc } = require('./engine');
 
 function registerAllIpcHandlers() {
   registerStorageIpc();
@@ -11,7 +10,6 @@ function registerAllIpcHandlers() {
   registerDialogIpc();
   registerFsIpc();
   registerNativeIpc();
-  registerEngineIpc();
 }
 
 module.exports = { registerAllIpcHandlers };

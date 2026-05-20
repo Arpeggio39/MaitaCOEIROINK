@@ -14,7 +14,7 @@ export function applyExportSamplingRateToControl() {
 
 export async function persistAppSettings() {
   const rate = getExportSamplingRate();
-  appState.exportSamplingRate = rate;
+  appState.setExportSamplingRate(rate);
   await bridge.saveAppSettings({ exportSamplingRate: rate });
 }
 
@@ -22,10 +22,10 @@ export async function loadAppSettingsFromDisk() {
   try {
     const blob = await bridge.loadAppSettings();
     if (blob && blob.exportSamplingRate != null) {
-      appState.exportSamplingRate = coerceSampleRate(blob.exportSamplingRate);
+      appState.setExportSamplingRate(coerceSampleRate(blob.exportSamplingRate));
     }
   } catch (_) {
-    appState.exportSamplingRate = EXPORT_SAMPLE_RATE_DEFAULT;
+    appState.setExportSamplingRate(EXPORT_SAMPLE_RATE_DEFAULT);
   }
   applyExportSamplingRateToControl();
 }

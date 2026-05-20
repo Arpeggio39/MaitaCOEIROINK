@@ -9,6 +9,7 @@ import {
   lastSentenceRanges,
   projects,
   setActiveId,
+  setActiveSentenceKey,
   setProjects,
 } from './state.js';
 import { showToast } from './utils.js';
@@ -102,6 +103,9 @@ export function migrateProjects(list) {
     }
     if (!Array.isArray(p.sentenceParams) && !p.sentenceParamsByKey) p.sentenceParamsByKey = {};
     if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
+    for (const k of Object.keys(p.sentenceProsodyByKey)) {
+      delete p.sentenceProsodyByKey[k].loading;
+    }
     if (p.titleEdited == null) p.titleEdited = false;
     migrateSentenceParamsForProject(p);
   }
@@ -184,7 +188,7 @@ export function selectProject(id) {
     syncActiveProjectFromUi();
   }
   setActiveId(id);
-  activeSentenceKey = null;
+  setActiveSentenceKey(null);
   lastSentenceRanges.length = 0;
   const p = activeProject();
   if (!p) return;

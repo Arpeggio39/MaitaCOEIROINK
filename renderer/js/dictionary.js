@@ -21,9 +21,9 @@ function normalizeDictionaryEntries(raw) {
 export async function loadDictionaryFromDisk() {
   try {
     const blob = await bridge.loadDictionary();
-    appState.dictionaryEntries = normalizeDictionaryEntries(blob?.dictionaryWords);
+    appState.setDictionaryEntries(normalizeDictionaryEntries(blob?.dictionaryWords));
   } catch (_) {
-    appState.dictionaryEntries = [];
+    appState.setDictionaryEntries([]);
   }
 }
 
@@ -120,7 +120,7 @@ async function applyDictionaryToCoeiroink() {
     const t = await res.text().catch(() => '');
     throw new Error(t || `辞書の保存に失敗しました (${res.status})`);
   }
-  appState.dictionaryEntries = rows;
+  appState.setDictionaryEntries(rows);
   await persistDictionaryToDisk();
 }
 

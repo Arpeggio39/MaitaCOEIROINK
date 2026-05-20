@@ -7,12 +7,14 @@ import {
 } from './constants.js';
 import {
   activeSentenceKey,
-  maitaStyleId,
   prosodyFetchGeneration,
+  prosodyFetchInFlight,
   prosodyScheduleTimer,
+  setProsodyScheduleTimer,
 } from './state.js';
 import * as appState from './state.js';
 import { fetchWithTimeout, showToast } from './utils.js';
+import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
 
 /**
@@ -117,11 +119,93 @@ async function fetchEstimateProsody(text) {
 }
 
 /**
+ * @param {string} kana
+ */
+async function fetchEstimateProsodyFromKana(kana) {
+  const res = await fetchWithTimeout(
+    `${DEFAULT_API_BASE}/v1/estimate_prosody_from_kana`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: kana }),
+    },
+    30000,
+  );
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText);
+    throw new Error(errText || `かなからの韻律推定に失敗 (${res.status})`);
+  }
+  /** @type {{ detail?: import('./state.js').SegmentMora[][] }} */
+  const data = await res.json();
+  if (!Array.isArray(data.detail) || data.detail.length === 0) {
+    throw new Error('韻律データが空です');
+  }
+  return cloneProsodyDetail(data.detail);
+}
+
+/**
+ * @param {import('./state.js').Project} project
+ * @param {string} key
+ */
+export async function reestimateProsodyFromKana(project, key) {
+  const entry = project.sentenceProsodyByKey?.[key];
+  if (!entry?.detail?.length || prosodyFetchInFlight.has(key)) return;
+
+  const kana = entry.detail.flat().map((m) => m.hira || '').join('').trim();
+  if (!kana) return;
+
+  kanaReestimateInFlight.add(key);
+  if (activeSentenceKey === key) notifyIntonationUi();
+
+  const oldPitches = entry.detail.flat().map((m) => getMoraPitch(m));
+
+  try {
+    const newDetail = await fetchEstimateProsodyFromKana(kana);
+    applyDefaultMoraPitches(newDetail);
+    const flatNew = newDetail.flat();
+    for (let i = 0; i < flatNew.length; i += 1) {
+      if (i < oldPitches.length) flatNew[i].pitch = oldPitches[i];
+    }
+    entry.detail = newDetail;
+    schedulePersist();
+  } catch (e) {
+    if (activeSentenceKey === key) {
+      showToast(e instanceof Error ? e.message : String(e));
+    }
+  } finally {
+    kanaReestimateInFlight.delete(key);
+    if (activeSentenceKey === key) notifyIntonationUi();
+  }
+}
+
+/** @type {ReturnType<typeof setTimeout> | null} */
+let kanaReestimateTimer = null;
+/** @type {{ project: import('./state.js').Project, key: string } | null} */
+let kanaReestimatePending = null;
+/** @type {Set<string>} */
+export const kanaReestimateInFlight = new Set();
+
+/**
+ * @param {import('./state.js').Project} project
+ * @param {string} key
+ */
+export function scheduleProsodyKanaReestimate(project, key) {
+  kanaReestimatePending = { project, key };
+  clearTimeout(kanaReestimateTimer);
+  kanaReestimateTimer = setTimeout(() => {
+    const pending = kanaReestimatePending;
+    kanaReestimatePending = null;
+    if (!pending) return;
+    void reestimateProsodyFromKana(pending.project, pending.key);
+  }, 420);
+}
+
+/**
  * @param {string} text
  * @param {import('./state.js').SegmentMora[][]} detail
  */
 async function fetchPredictF0ForProsody(text, detail) {
-  if (!maitaStyleId) throw new Error('話者スタイルが未設定です');
+  const styleId = await resolveMaitaStyleId();
   const res = await fetchWithTimeout(
     `${DEFAULT_API_BASE}/v1/predict_with_duration`,
     {
@@ -129,7 +213,7 @@ async function fetchPredictF0ForProsody(text, detail) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         speakerUuid: MAITA_UUID,
-        styleId: maitaStyleId,
+        styleId: styleId,
         text,
         prosodyDetail: detail,
         speedScale: 1,
@@ -185,7 +269,8 @@ export function remapSentenceProsody(project, prevRanges, newRanges) {
 
   for (const nr of newRanges) {
     if (oldMap[nr.key] && oldMap[nr.key].text === nr.text) {
-      next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(oldMap[nr.key].detail) };
+      const src = oldMap[nr.key];
+      next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(src.detail) };
       continue;
     }
     const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
@@ -206,65 +291,51 @@ export function getSegmentProsody(project, key) {
 }
 
 /**
- * @param {import('./state.js').SegmentMora[]} phrase
+ * @param {import('./state.js').SegmentMora} mora
  */
-export function getWordAveragePitch(phrase) {
-  if (!phrase.length) return MORA_PITCH_DEFAULT;
-  let sum = 0;
-  for (const m of phrase) sum += m.pitch ?? MORA_PITCH_DEFAULT;
-  return sum / phrase.length;
+export function getMoraPitch(mora) {
+  return mora.pitch ?? MORA_PITCH_DEFAULT;
 }
 
 /**
- * @param {import('./state.js').SegmentMora[]} phrase
- * @param {number} newAverage
+ * @param {import('./state.js').SegmentMora} mora
+ * @param {number} pitch
  */
-export function setWordPitchByAverage(phrase, newAverage) {
-  const oldAverage = getWordAveragePitch(phrase);
-  const delta = newAverage - oldAverage;
-  for (const m of phrase) {
-    const current = m.pitch ?? MORA_PITCH_DEFAULT;
-    m.pitch = Math.max(MORA_PITCH_MIN, Math.min(MORA_PITCH_MAX, current + delta));
+export function setMoraPitch(mora, pitch) {
+  mora.pitch = Math.max(MORA_PITCH_MIN, Math.min(MORA_PITCH_MAX, pitch));
+}
+
+/**
+ * @param {import('./state.js').SegmentMora[][]} phrases
+ */
+export function buildMoraSpansFromDetail(phrases) {
+  /** @type {{ mora: import('./state.js').SegmentMora, charStart: number, charEnd: number }[]} */
+  const spans = [];
+  let charIdx = 0;
+  for (const phrase of phrases) {
+    for (const m of phrase) {
+      const len = Math.max(1, [...(m.hira || '')].length);
+      spans.push({ mora: m, charStart: charIdx, charEnd: charIdx + len });
+      charIdx += len;
+    }
   }
+  return spans;
 }
 
 /**
  * @param {import('./state.js').SegmentMora[][]} phrases
  */
 export function buildHiraganaCellsFromDetail(phrases) {
-  /** @type {{ char: string, phraseIndex: number }[]} */
+  /** @type {{ char: string, phraseIndex: number, mora: import('./state.js').SegmentMora }[]} */
   const cells = [];
   for (let pi = 0; pi < phrases.length; pi += 1) {
     for (const m of phrases[pi]) {
       for (const ch of [...(m.hira || '')]) {
-        cells.push({ char: ch, phraseIndex: pi });
+        cells.push({ char: ch, phraseIndex: pi, mora: m });
       }
     }
   }
   return cells;
-}
-
-/**
- * @param {import('./state.js').SegmentMora[][]} phrases
- */
-export function buildWordSpansFromHiragana(phrases) {
-  /** @type {{ start: number, end: number, phrase: import('./state.js').SegmentMora[], phraseIndex: number }[]} */
-  const spans = [];
-  let charIdx = 0;
-  for (let pi = 0; pi < phrases.length; pi += 1) {
-    const phrase = phrases[pi];
-    let len = 0;
-    for (const m of phrase) len += [...(m.hira || '')].length;
-    if (len === 0) len = 1;
-    spans.push({
-      start: charIdx,
-      end: charIdx + len,
-      phrase,
-      phraseIndex: pi,
-    });
-    charIdx += len;
-  }
-  return spans;
 }
 
 function notifyIntonationUi() {
@@ -285,7 +356,13 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
   const existing = project.sentenceProsodyByKey[key];
   if (opts.force && existing) delete project.sentenceProsodyByKey[key];
   const cached = project.sentenceProsodyByKey[key];
-  if (!opts.force && cached && cached.text === trimmed && !cached.loading) return;
+  if (!opts.force && cached && cached.text === trimmed && cached.detail?.length) return;
+  if (!opts.force && prosodyFetchInFlight.has(key)) return;
+
+  if (opts.force) {
+    prosodyFetchGeneration.set(key, (prosodyFetchGeneration.get(key) || 0) + 1);
+    prosodyFetchInFlight.delete(key);
+  }
 
   const gen = (prosodyFetchGeneration.get(key) || 0) + 1;
   prosodyFetchGeneration.set(key, gen);
@@ -293,39 +370,37 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
   project.sentenceProsodyByKey[key] = {
     text: trimmed,
     detail: !opts.force && cached?.text === trimmed ? cloneProsodyDetail(cached.detail) : [],
-    loading: true,
   };
-  if (activeSentenceKey === key) notifyIntonationUi();
+  delete project.sentenceProsodyByKey[key].loading;
+  prosodyFetchInFlight.add(key);
+  notifyIntonationUi();
 
   try {
     const detail = await fetchEstimateProsody(trimmed);
     applyDefaultMoraPitches(detail);
 
     if (prosodyFetchGeneration.get(key) !== gen) return;
-    project.sentenceProsodyByKey[key] = { text: trimmed, detail, loading: true };
-    if (activeSentenceKey === key) notifyIntonationUi();
+    project.sentenceProsodyByKey[key] = { text: trimmed, detail };
+    notifyIntonationUi();
 
-    if (maitaStyleId) {
-      try {
-        await fetchPredictF0ForProsody(trimmed, detail);
-      } catch (e) {
-        if (activeSentenceKey === key) {
-          showToast(e instanceof Error ? e.message : String(e));
-        }
+    try {
+      await fetchPredictF0ForProsody(trimmed, detail);
+    } catch (e) {
+      if (prosodyFetchGeneration.get(key) === gen) {
+        showToast(e instanceof Error ? e.message : String(e));
       }
     }
 
     if (prosodyFetchGeneration.get(key) !== gen) return;
-    project.sentenceProsodyByKey[key] = { text: trimmed, detail };
     schedulePersist();
+    notifyIntonationUi();
   } catch (e) {
     if (prosodyFetchGeneration.get(key) !== gen) return;
     delete project.sentenceProsodyByKey[key];
-    if (activeSentenceKey === key) {
-      showToast(e instanceof Error ? e.message : String(e));
-    }
+    showToast(e instanceof Error ? e.message : String(e));
   } finally {
-    if (prosodyFetchGeneration.get(key) === gen && activeSentenceKey === key) {
+    if (prosodyFetchGeneration.get(key) === gen) {
+      prosodyFetchInFlight.delete(key);
       notifyIntonationUi();
     }
   }
@@ -337,12 +412,12 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
  */
 export function scheduleProsodyForRanges(project, ranges) {
   clearTimeout(prosodyScheduleTimer);
-  prosodyScheduleTimer = setTimeout(() => {
+  setProsodyScheduleTimer(setTimeout(() => {
     for (const r of ranges) {
       const entry = project.sentenceProsodyByKey?.[r.key];
-      if (!entry || entry.text !== r.text || entry.loading) {
+      if (!entry || entry.text !== r.text) {
         void ensureSegmentProsody(project, r.key, r.text);
       }
     }
-  }, 420);
+  }, 420));
 }

@@ -20,6 +20,8 @@ export let saveTimer = null;
 export let prosodyScheduleTimer = null;
 /** @type {Map<string, number>} */
 export const prosodyFetchGeneration = new Map();
+/** @type {Set<string>} */
+export const prosodyFetchInFlight = new Set();
 
 /** @type {{ word: string, yomi: string, accent: number }[]} */
 export let dictionaryEntries = [];
@@ -53,4 +55,48 @@ export function setProjects(list) {
 
 export function setActiveId(id) {
   activeId = id;
+}
+
+export function setActiveSentenceKey(key) {
+  activeSentenceKey = key;
+}
+
+export function setSaveTimer(timer) {
+  saveTimer = timer;
+}
+
+export function setProsodyScheduleTimer(timer) {
+  prosodyScheduleTimer = timer;
+}
+
+export function setDictionaryEntries(entries) {
+  dictionaryEntries = entries;
+}
+
+export function setExportSamplingRate(rate) {
+  exportSamplingRate = rate;
+}
+
+export function setMaitaStyleId(styleId) {
+  maitaStyleId = styleId;
+}
+
+export function setCurrentAudio(audio) {
+  currentAudio = audio;
+}
+
+export function setCurrentBlobUrl(url) {
+  currentBlobUrl = url;
+}
+
+export function setWaveformRaf(raf) {
+  waveformRaf = raf;
+}
+
+export function setWaveformPhases(phases) {
+  waveformPhases = phases;
+}
+
+export function setRefreshIntonationUi(fn) {
+  refreshIntonationUi = fn;
 }

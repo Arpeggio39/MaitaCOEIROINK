@@ -30,10 +30,8 @@ import {
   saveDictionaryFromModal,
 } from './dictionary.js';
 import { persistAppSettings } from './settings.js';
-import { checkCoeiroinkManually } from './engine.js';
 
 export function bindEvents() {
-  els.btnCoeiroinkStarted?.addEventListener('click', () => void checkCoeiroinkManually());
   els.projectTitle.addEventListener('click', () => startProjectTitleEdit());
   els.projectTitleInput.addEventListener('blur', () => commitProjectTitleEdit());
   els.projectTitleInput.addEventListener('keydown', (ev) => {

@@ -3,7 +3,6 @@ import { bridge } from './bridge.js';
 import { initEditor, refreshValueLabels, updateSegmentPanelsVisibility } from './editor.js';
 import { bindEvents } from './events.js';
 import { loadDictionaryFromDisk } from './dictionary.js';
-import { initConnectPrompt } from './engine.js';
 import { resizeWaveformCanvas } from './audio.js';
 import { migrateProjects, selectProject, syncActiveProjectFromUi } from './projects.js';
 import { loadAppSettingsFromDisk } from './settings.js';
@@ -49,7 +48,6 @@ async function boot() {
     appState.setActiveId(appState.projects[0].id);
   }
 
-  initConnectPrompt();
   selectProject(appState.activeId);
 }
 

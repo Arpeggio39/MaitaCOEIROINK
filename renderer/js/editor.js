@@ -17,16 +17,24 @@ import {
 } from './segments.js';
 import {
   buildHiraganaCellsFromDetail,
-  buildWordSpansFromHiragana,
+  buildMoraSpansFromDetail,
   ensureSegmentProsody,
+  getMoraPitch,
   getSegmentProsody,
-  getWordAveragePitch,
+  kanaReestimateInFlight,
   remapSentenceProsody,
   scheduleProsodyForRanges,
-  setWordPitchByAverage,
+  scheduleProsodyKanaReestimate,
+  setMoraPitch,
 } from './prosody.js';
-import * as appState from './state.js';
-import { activeProject, activeSentenceKey, lastSentenceRanges } from './state.js';
+import {
+  activeProject,
+  activeSentenceKey,
+  lastSentenceRanges,
+  prosodyFetchInFlight,
+  setActiveSentenceKey,
+  setRefreshIntonationUi,
+} from './state.js';
 import { escapeHtml } from './utils.js';
 import { bumpActiveUpdatedAt, setEditorHooks } from './projects.js';
 import { schedulePersist } from './persist.js';
@@ -55,7 +63,7 @@ export function saveActiveSegmentParams() {
 
 export function clearSentenceSelection() {
   if (activeSentenceKey != null) saveActiveSegmentParams();
-  activeSentenceKey = null;
+  setActiveSentenceKey(null);
   updateSegmentPanelsVisibility();
   renderIntonationUI();
   renderSegmentOverlay();
@@ -71,7 +79,7 @@ export function selectSentence(key) {
   const p = activeProject();
   if (!p) return;
 
-  activeSentenceKey = key;
+  setActiveSentenceKey(key);
   const params = getSentenceParams(p, key);
   applyParamsToControls(segmentParamControls, params);
   refreshValueLabelsFor(segmentParamControls);
@@ -167,15 +175,13 @@ export function renderIntonationUI() {
   }
 
   const entry = getSegmentProsody(p, key);
-  const isLoading = !entry || !!entry.loading;
+  if (entry?.loading) delete entry.loading;
 
-  if (isLoading) {
+  const isInitialLoading = prosodyFetchInFlight.has(key) && !entry?.detail?.length;
+
+  if (isInitialLoading) {
     els.intonationLoading.hidden = false;
-    if (entry?.detail?.length) {
-      els.intonationLoading.classList.add('is-overlay');
-    } else {
-      els.intonationContent.hidden = true;
-    }
+    els.intonationContent.hidden = true;
     els.btnRegenerateProsody.disabled = true;
   }
 
@@ -188,51 +194,91 @@ export function renderIntonationUI() {
   const gridCols = `repeat(${charCount}, ${INTONATION_CHAR_WIDTH}px)`;
   els.intonationTextStrip.style.gridTemplateColumns = gridCols;
 
-  for (const cell of cells) {
-    const el = document.createElement('span');
-    el.className = 'intonation-char';
-    el.textContent = cell.char;
-    els.intonationTextStrip.appendChild(el);
+  const moraSpans = buildMoraSpansFromDetail(entry.detail);
+  const kanaBusy = kanaReestimateInFlight.has(key);
+  const prosodyBusy = prosodyFetchInFlight.has(key) && !entry.detail?.length;
+
+  for (const span of moraSpans) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'intonation-mora-input';
+    input.value = span.mora.hira || '';
+    input.style.gridColumn = `${span.charStart + 1} / ${span.charEnd + 1}`;
+    input.disabled = prosodyBusy || kanaBusy;
+    input.setAttribute('aria-label', `${span.mora.hira || ''} の読み`);
+    input.spellcheck = false;
+    input.autocomplete = 'off';
+
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        input.blur();
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      const next = input.value.normalize('NFKC').trim();
+      const prev = (span.mora.hira || '').normalize('NFKC').trim();
+      if (!next) {
+        input.value = span.mora.hira || '';
+        return;
+      }
+      if (next === prev) return;
+      span.mora.hira = next;
+      bumpActiveUpdatedAt();
+      scheduleProsodyKanaReestimate(p, key);
+    });
+
+    els.intonationTextStrip.appendChild(input);
   }
 
-  const spans = buildWordSpansFromHiragana(entry.detail);
   els.intonationSliderStrip.style.gridTemplateColumns = gridCols;
 
-  for (const span of spans) {
-    const wordBlock = document.createElement('div');
-    wordBlock.className = 'intonation-word';
-    wordBlock.style.gridColumn = `${span.start + 1} / ${span.end + 1}`;
-    wordBlock.dataset.phraseIndex = String(span.phraseIndex);
+  /** @type {Map<import('./state.js').SegmentMora, { sliders: HTMLInputElement[], pitchVals: HTMLElement[] }>} */
+  const moraUi = new Map();
+
+  for (const cell of cells) {
+    const col = document.createElement('div');
+    col.className = 'intonation-char-col';
+
+    const pitch = getMoraPitch(cell.mora);
 
     const pitchVal = document.createElement('span');
-    pitchVal.className = 'intonation-word-pitch';
-    pitchVal.textContent = getWordAveragePitch(span.phrase).toFixed(2);
+    pitchVal.className = 'intonation-char-pitch';
+    pitchVal.textContent = pitch.toFixed(2);
 
     const sliderWrap = document.createElement('div');
-    sliderWrap.className = 'intonation-word-slider-wrap';
+    sliderWrap.className = 'intonation-char-slider-wrap';
 
     const slider = document.createElement('input');
     slider.type = 'range';
-    slider.className = 'intonation-word-slider';
+    slider.className = 'intonation-char-slider';
     slider.min = String(MORA_PITCH_MIN);
     slider.max = String(MORA_PITCH_MAX);
     slider.step = '0.05';
-    slider.value = String(getWordAveragePitch(span.phrase));
-    slider.disabled = !!entry.loading;
-    const wordLabel = span.phrase.map((m) => m.hira).join('');
-    slider.setAttribute('aria-label', `${wordLabel} のピッチ`);
+    slider.value = String(pitch);
+    slider.disabled = prosodyBusy || kanaBusy;
+    slider.setAttribute('aria-label', `${cell.char} のピッチ`);
 
     slider.addEventListener('input', () => {
       const v = Number(slider.value);
-      setWordPitchByAverage(span.phrase, v);
-      pitchVal.textContent = v.toFixed(2);
+      setMoraPitch(cell.mora, v);
+      const group = moraUi.get(cell.mora);
+      if (group) {
+        for (const s of group.sliders) s.value = String(v);
+        for (const p of group.pitchVals) p.textContent = v.toFixed(2);
+      }
       bumpActiveUpdatedAt();
       schedulePersist();
     });
 
     sliderWrap.appendChild(slider);
-    wordBlock.append(pitchVal, sliderWrap);
-    els.intonationSliderStrip.appendChild(wordBlock);
+    col.append(pitchVal, sliderWrap);
+    els.intonationSliderStrip.appendChild(col);
+
+    if (!moraUi.has(cell.mora)) moraUi.set(cell.mora, { sliders: [], pitchVals: [] });
+    moraUi.get(cell.mora).sliders.push(slider);
+    moraUi.get(cell.mora).pitchVals.push(pitchVal);
   }
 }
 
@@ -256,7 +302,7 @@ export function renderSegmentOverlay() {
   lastSentenceRanges.push(...ranges);
 
   if (activeSentenceKey != null && !ranges.some((r) => r.key === activeSentenceKey)) {
-    activeSentenceKey = null;
+    setActiveSentenceKey(null);
     updateSegmentPanelsVisibility();
   }
 
@@ -269,7 +315,7 @@ export function refreshValueLabels() {
 }
 
 export function initEditor() {
-  appState.refreshIntonationUi = renderIntonationUI;
+  setRefreshIntonationUi(renderIntonationUI);
   setEditorHooks({
     saveActiveSegmentParams,
     renderSegmentOverlay,

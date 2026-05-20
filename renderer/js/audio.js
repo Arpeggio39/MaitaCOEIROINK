@@ -12,7 +12,8 @@ import {
   ensureSegmentProsody,
   getSegmentProsody,
 } from './prosody.js';
-import { activeProject, maitaStyleId } from './state.js';
+import { resolveMaitaStyleId } from './engine.js';
+import { activeProject } from './state.js';
 import * as appState from './state.js';
 import { coerceSampleRate, showToast } from './utils.js';
 import { saveActiveSegmentParams } from './editor.js';
@@ -131,17 +132,13 @@ async function synthesizeLine(
   prosodyOverride = null,
   outputSamplingRate = PLAYBACK_SAMPLE_RATE,
 ) {
-  if (!maitaStyleId) {
-    throw new Error(
-      'COEIROINK から琵音マイタのスタイルを取得できません。左下の接続状態を確認してエンジンを起動してから再度お試しください。',
-    );
-  }
+  const styleId = await resolveMaitaStyleId();
   const url = `${DEFAULT_API_BASE}/v1/synthesis`;
   const params = paramsOverride ?? snapshotParamsFromControls(segmentParamControls);
   const detail = prosodyOverride?.detail?.length ? cloneProsodyDetail(prosodyOverride.detail) : [];
   const body = {
     speakerUuid: MAITA_UUID,
-    styleId: maitaStyleId,
+    styleId: styleId,
     text: textLine,
     prosodyDetail: detail,
     speedScale: params.speedScale,
@@ -205,7 +202,7 @@ export function resizeWaveformCanvas() {
 function stopWaveformAnimation() {
   if (appState.waveformRaf != null) {
     cancelAnimationFrame(appState.waveformRaf);
-    appState.waveformRaf = null;
+    appState.setWaveformRaf(null);
   }
   const ctx = els.waveformCanvas.getContext('2d');
   if (ctx) ctx.clearRect(0, 0, els.waveformCanvas.width, els.waveformCanvas.height);
@@ -237,14 +234,14 @@ function drawWaveformFrame(t) {
 
 function startWaveformAnimation() {
   resizeWaveformCanvas();
-  appState.waveformPhases = Array.from({ length: 56 }, () => Math.random() * Math.PI * 2);
+  appState.setWaveformPhases(Array.from({ length: 56 }, () => Math.random() * Math.PI * 2));
   /** @param {number} now */
   function loop(now) {
     if (!els.waveformCanvas.classList.contains('is-active')) return;
     drawWaveformFrame(now);
-    appState.waveformRaf = requestAnimationFrame(loop);
+    appState.setWaveformRaf(requestAnimationFrame(loop));
   }
-  appState.waveformRaf = requestAnimationFrame(loop);
+  appState.setWaveformRaf(requestAnimationFrame(loop));
 }
 
 function setPlaybackUi(playing) {
@@ -259,9 +256,9 @@ function cleanupPlaybackNatural() {
   setPlaybackUi(false);
   if (appState.currentBlobUrl) {
     URL.revokeObjectURL(appState.currentBlobUrl);
-    appState.currentBlobUrl = null;
+    appState.setCurrentBlobUrl(null);
   }
-  appState.currentAudio = null;
+  appState.setCurrentAudio(null);
 }
 
 export function stopPlayback() {
@@ -275,11 +272,11 @@ export function stopPlayback() {
     } catch (_) {
       /* ignore */
     }
-    appState.currentAudio = null;
+    appState.setCurrentAudio(null);
   }
   if (appState.currentBlobUrl) {
     URL.revokeObjectURL(appState.currentBlobUrl);
-    appState.currentBlobUrl = null;
+    appState.setCurrentBlobUrl(null);
   }
 }
 
@@ -303,9 +300,9 @@ async function playAudio() {
     const buf = await buildFullUtterance(PLAYBACK_SAMPLE_RATE);
     const blob = new Blob([buf], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
-    appState.currentBlobUrl = url;
+    appState.setCurrentBlobUrl(url);
     const au = new Audio(url);
-    appState.currentAudio = au;
+    appState.setCurrentAudio(au);
     au.onended = () => {
       if (appState.currentAudio !== au) return;
       cleanupPlaybackNatural();

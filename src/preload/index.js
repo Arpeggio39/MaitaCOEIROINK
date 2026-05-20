@@ -12,7 +12,4 @@ contextBridge.exposeInMainWorld('maita', {
   writeWavFile: (filePath, arrayBuffer) => ipcRenderer.invoke('fs:writeWav', filePath, arrayBuffer),
   nativeUndo: () => ipcRenderer.invoke('native:undo'),
   nativeRedo: () => ipcRenderer.invoke('native:redo'),
-  launchCoeiroink: () => ipcRenderer.invoke('engine:launchCoeiroink'),
-  pingCoeiroink: () => ipcRenderer.invoke('engine:pingCoeiroink'),
-  probeCoeiroink: () => ipcRenderer.invoke('engine:probeCoeiroink'),
 });
