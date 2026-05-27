@@ -5,7 +5,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:MaitaCOEIROINK"
     xmlns:models="using:MaitaCOEIROINK.Models"
+    x:DataType="local:MainWindow"
     mc:Ignorable="d"
     Title="琵音マイタ for COEIROINK">
 
@@ -147,7 +149,7 @@
                                      PlaceholderText="ここに台本を入力…"
                                      Background="Transparent" BorderThickness="0"
                                      Padding="12,10" FontSize="14"
-                                     TextChanged="OnEditorTextChanged"
+                                     TextChanging="OnEditorTextChanging"
                                      SelectionChanged="OnEditorSelectionChanged" />
                         </ScrollViewer>
                     </Grid>
