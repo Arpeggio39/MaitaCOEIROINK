@@ -1,12 +1,18 @@
 <Application
     x:Class="MaitaCOEIROINK.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:helpers="using:MaitaCOEIROINK.Helpers">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            <helpers:ActiveProjectBrushConverter x:Key="ActiveProjectBrushConverter" />
+            <helpers:UpdatedLabelConverter x:Key="UpdatedLabelConverter" />
+            <helpers:PlayStopGlyphConverter x:Key="PlayStopGlyphConverter" />
+            <helpers:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <helpers:MoraCountConverter x:Key="MoraCountConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -2,17 +2,12 @@
     x:Class="MaitaCOEIROINK.DictionaryDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:helpers="using:MaitaCOEIROINK.Helpers"
     xmlns:models="using:MaitaCOEIROINK.Models"
     Title="読み上げ辞書"
     PrimaryButtonText="保存"
     CloseButtonText="閉じる"
     DefaultButton="Primary"
     PrimaryButtonClick="OnPrimaryClick">
-
-    <ContentDialog.Resources>
-        <helpers:MoraCountConverter x:Key="MoraCountConverter" />
-    </ContentDialog.Resources>
 
     <Grid MinWidth="640" RowSpacing="12">
         <Grid.RowDefinitions>

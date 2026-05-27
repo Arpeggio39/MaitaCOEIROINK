@@ -37,9 +37,12 @@ jobs:
         working-directory: windows
         run: |
           if (Test-Path build.log) { Get-Content build.log -Tail 300 }
-          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Include *.json,*.xml,*.txt -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "=== $($_.FullName) ==="
-            Get-Content $_.FullName -ErrorAction SilentlyContinue | Select-Object -First 120
+          $out = "MaitaCOEIROINK/obj/x64/Release/net8.0-windows10.0.19041.0/output.json"
+          if (Test-Path $out) {
+            $data = Get-Content $out -Raw | ConvertFrom-Json
+            if ($data.Errors) { $data.Errors | ConvertTo-Json -Depth 8 }
+          } else {
+            Write-Host "output.json not found"
           }
 
       - name: Publish

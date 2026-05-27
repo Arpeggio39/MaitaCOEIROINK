@@ -6,20 +6,12 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:MaitaCOEIROINK.Models"
-    xmlns:helpers="using:MaitaCOEIROINK.Helpers"
     mc:Ignorable="d"
     Title="琵音マイタ for COEIROINK">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
-
-    <Window.Resources>
-        <helpers:ActiveProjectBrushConverter x:Key="ActiveProjectBrushConverter" />
-        <helpers:UpdatedLabelConverter x:Key="UpdatedLabelConverter" />
-        <helpers:PlayStopGlyphConverter x:Key="PlayStopGlyphConverter" />
-        <helpers:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-    </Window.Resources>
 
     <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
         <Grid.ColumnDefinitions>
