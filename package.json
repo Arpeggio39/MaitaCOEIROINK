@@ -10,7 +10,8 @@
     "dist:mac": "electron-builder --mac",
     "dist:mac:dir": "electron-builder --mac --dir",
     "dist:win": "electron-builder --win --x64",
-    "dist:win:dir": "electron-builder --win --x64 --dir"
+    "dist:win:dir": "electron-builder --win --x64 --dir",
+    "dist:winui": "dotnet build windows/MaitaCOEIROINK.sln -c Release -p:Platform=x64"
   },
   "build": {
     "appId": "jp.arpeggio.maita-coeiroink",

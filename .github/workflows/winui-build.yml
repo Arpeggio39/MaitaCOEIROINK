@@ -1,0 +1,38 @@
+name: Build WinUI
+
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/winui-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore MaitaCOEIROINK.sln
+
+      - name: Build
+        run: dotnet build MaitaCOEIROINK.sln -c Release -p:Platform=x64
+
+      - name: Publish
+        run: dotnet publish MaitaCOEIROINK/MaitaCOEIROINK.csproj -c Release -p:Platform=x64 -o ../dist/winui
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaitaCOEIROINK-WinUI-x64
+          path: dist/winui/
