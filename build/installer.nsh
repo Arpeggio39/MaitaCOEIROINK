@@ -1,6 +1,7 @@
-; electron-builder の atomicRMDir が失敗するとアンインストールが壊れるため、
-; シンプルな削除処理に差し替える（アンインストール・更新の両方で実行される）
+; Keep the uninstaller out of $INSTDIR while removing the installed app.
+; /REBOOTOK lets Windows finish cleanup after reboot if a file is still locked.
 !macro customRemoveFiles
   DetailPrint "Removing application files..."
-  RMDir /r $INSTDIR
+  SetOutPath "$TEMP"
+  RMDir /r /REBOOTOK "$INSTDIR"
 !macroend
