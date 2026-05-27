@@ -1,8 +1,8 @@
-import { DEFAULT_API_BASE } from './constants.js';
+import { buildDictionaryPayload, postCoeiroink } from './coeiroink-api.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
 import * as appState from './state.js';
-import { countMorasFromYomi, fetchWithTimeout, showToast } from './utils.js';
+import { countMorasFromYomi, showToast } from './utils.js';
 
 function normalizeDictionaryEntries(raw) {
   if (!Array.isArray(raw)) return [];
@@ -99,20 +99,12 @@ function readDictionaryFromDom() {
 
 async function applyDictionaryToCoeiroink() {
   const rows = readDictionaryFromDom();
-  const payload = {
-    dictionaryWords: rows.map((e) => ({
-      word: e.word,
-      yomi: e.yomi,
-      accent: e.accent,
-      numMoras: countMorasFromYomi(e.yomi),
-    })),
-  };
-  const res = await fetchWithTimeout(
-    `${DEFAULT_API_BASE}/v1/set_dictionary`,
+  const res = await postCoeiroink(
+    '/v1/set_dictionary',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(buildDictionaryPayload(rows)),
     },
     20000,
   );
@@ -122,6 +114,24 @@ async function applyDictionaryToCoeiroink() {
   }
   appState.setDictionaryEntries(rows);
   await persistDictionaryToDisk();
+}
+
+/** ディスク上の辞書を COEIROINK エンジンへ反映する（起動時など） */
+export async function syncDictionaryToCoeiroink() {
+  const rows = appState.dictionaryEntries;
+  const res = await postCoeiroink(
+    '/v1/set_dictionary',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildDictionaryPayload(rows)),
+    },
+    20000,
+  );
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(t || `辞書の同期に失敗しました (${res.status})`);
+  }
 }
 
 export function openDictionaryModal() {

@@ -35,6 +35,7 @@ export const els = {
   workspace: document.getElementById('workspace'),
   paramPane: document.getElementById('paramPane'),
   btnSegmentParamReset: document.getElementById('btnSegmentParamReset'),
+  btnSegmentExport: document.getElementById('btnSegmentExport'),
   btnRegenerateProsody: document.getElementById('btnRegenerateProsody'),
   intonationDock: document.getElementById('intonationDock'),
   intonationPanel: document.getElementById('intonationPanel'),

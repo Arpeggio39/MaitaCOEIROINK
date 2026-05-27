@@ -1,19 +1,22 @@
 import {
-  DEFAULT_API_BASE,
   MAITA_UUID,
   PLAYBACK_SAMPLE_RATE,
 } from './constants.js';
+import { postCoeiroink } from './coeiroink-api.js';
 import { els } from './dom.js';
 import { cloneParams, snapshotParamsFromControls } from './params.js';
 import { segmentParamControls } from './dom.js';
 import { getSentenceParams, sentenceRangesFromText } from './segments.js';
 import {
-  cloneProsodyDetail,
+  buildAdjustedF0ForSynthesis,
+  ensureProsodyF0Metadata,
   ensureSegmentProsody,
   getSegmentProsody,
+  hasProsodyPitchEdits,
+  prosodyDetailForApi,
 } from './prosody.js';
 import { resolveMaitaStyleId } from './engine.js';
-import { activeProject } from './state.js';
+import { activeProject, activeSentenceKey } from './state.js';
 import * as appState from './state.js';
 import { coerceSampleRate, showToast } from './utils.js';
 import { saveActiveSegmentParams } from './editor.js';
@@ -133,9 +136,12 @@ async function synthesizeLine(
   outputSamplingRate = PLAYBACK_SAMPLE_RATE,
 ) {
   const styleId = await resolveMaitaStyleId();
-  const url = `${DEFAULT_API_BASE}/v1/synthesis`;
   const params = paramsOverride ?? snapshotParamsFromControls(segmentParamControls);
-  const detail = prosodyOverride?.detail?.length ? cloneProsodyDetail(prosodyOverride.detail) : [];
+  if (prosodyOverride?.detail?.length) {
+    await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale);
+  }
+  const detail = prosodyOverride?.detail?.length ? prosodyDetailForApi(prosodyOverride.detail) : [];
+  /** @type {Record<string, unknown>} */
   const body = {
     speakerUuid: MAITA_UUID,
     styleId: styleId,
@@ -149,12 +155,22 @@ async function synthesizeLine(
     postPhonemeLength: params.postPhonemeLength,
     outputSamplingRate: coerceSampleRate(outputSamplingRate),
     processingAlgorithm: params.processingAlgorithm,
+    sampledIntervalValue: 0,
+    adjustedF0: [],
   };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
-    body: JSON.stringify(body),
-  });
+  if (prosodyOverride && hasProsodyPitchEdits(prosodyOverride)) {
+    const adjustedF0 = buildAdjustedF0ForSynthesis(prosodyOverride);
+    if (adjustedF0) body.adjustedF0 = adjustedF0;
+  }
+  const res = await postCoeiroink(
+    '/v1/synthesis',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
+      body: JSON.stringify(body),
+    },
+    180000,
+  );
   if (!res.ok) {
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(errText || `HTTP ${res.status}`);
@@ -335,5 +351,51 @@ export async function exportAudio() {
     showToast(e instanceof Error ? e.message : String(e));
   } finally {
     els.btnExport.disabled = false;
+  }
+}
+
+function safeFilenamePart(text, maxLen = 24) {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  return trimmed.slice(0, maxLen).replace(/[/\\?%*:|"<>]/g, '_').replace(/\s+/g, '_');
+}
+
+export async function exportActiveSentence() {
+  if (activeSentenceKey == null) {
+    showToast('書き出す文章を選択してください');
+    return;
+  }
+
+  saveActiveSegmentParams();
+  const p = activeProject();
+  if (!p) return;
+
+  const range = sentenceRangesFromText(els.editor.value).find((r) => r.key === activeSentenceKey);
+  if (!range) {
+    showToast('選択した文章が見つかりません');
+    return;
+  }
+
+  els.btnSegmentExport.disabled = true;
+  try {
+    await persistAppSettings();
+    let prosody = getSegmentProsody(p, activeSentenceKey);
+    if (!prosody || prosody.text !== range.text.trim()) {
+      await ensureSegmentProsody(p, activeSentenceKey, range.text);
+      prosody = getSegmentProsody(p, activeSentenceKey);
+    }
+    const params = getSentenceParams(p, activeSentenceKey);
+    const buf = await synthesizeLine(range.text, params, prosody, getExportSamplingRate());
+    const titlePart = (p.title || 'export').replace(/[/\\?%*:|"<>]/g, '_') || 'export';
+    const textPart = safeFilenamePart(range.text) || `part${range.index + 1}`;
+    const name = `${titlePart}_${textPart}.wav`;
+    const filePath = await bridge.saveWavDialog(name);
+    if (!filePath) return;
+    await bridge.writeWavFile(filePath, buf);
+    showToast(`書き出しました: ${filePath}`);
+  } catch (e) {
+    showToast(e instanceof Error ? e.message : String(e));
+  } finally {
+    els.btnSegmentExport.disabled = false;
   }
 }

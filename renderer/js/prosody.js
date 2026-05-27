@@ -1,10 +1,11 @@
+import { postCoeiroink } from './coeiroink-api.js';
 import {
-  DEFAULT_API_BASE,
   MAITA_UUID,
   MORA_PITCH_DEFAULT,
   MORA_PITCH_MAX,
   MORA_PITCH_MIN,
 } from './constants.js';
+import { getSentenceParams } from './segments.js';
 import {
   activeSentenceKey,
   prosodyFetchGeneration,
@@ -13,7 +14,7 @@ import {
   setProsodyScheduleTimer,
 } from './state.js';
 import * as appState from './state.js';
-import { fetchWithTimeout, showToast } from './utils.js';
+import { showToast } from './utils.js';
 import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
 
@@ -52,6 +53,127 @@ function hzToMoraPitch(hz) {
 }
 
 /**
+ * @param {number} pitch
+ */
+function moraPitchToHz(pitch) {
+  return 200 * 2 ** (pitch - MORA_PITCH_DEFAULT);
+}
+
+/**
+ * @param {import('./state.js').SegmentMora[][]} detail
+ */
+export function prosodyDetailForApi(detail) {
+  return detail.map((phrase) =>
+    phrase.map(({ phoneme, hira, accent }) => ({ phoneme, hira, accent })),
+  );
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} src
+ */
+export function cloneSegmentProsody(src) {
+  return {
+    text: src.text,
+    detail: cloneProsodyDetail(src.detail),
+    baseF0: src.baseF0 ? [...src.baseF0] : undefined,
+    baselinePitch: src.baselinePitch ? [...src.baselinePitch] : undefined,
+    moraWavRanges: src.moraWavRanges ? src.moraWavRanges.map((r) => ({ ...r })) : undefined,
+    f0TotalSamples: src.f0TotalSamples,
+    f0SpeedScale: src.f0SpeedScale,
+  };
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} prosody
+ */
+export function hasProsodyPitchEdits(prosody) {
+  const flat = prosody.detail?.flat() ?? [];
+  const baseline = prosody.baselinePitch;
+  if (!baseline?.length || baseline.length !== flat.length) return false;
+  for (let i = 0; i < flat.length; i += 1) {
+    const cur = getMoraPitch(flat[i]);
+    const base = baseline[i];
+    if (Math.abs(cur - base) > 0.001) return true;
+  }
+  return false;
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} prosody
+ * @returns {number[] | null}
+ */
+export function buildAdjustedF0ForSynthesis(prosody) {
+  const { baseF0, moraWavRanges, f0TotalSamples, baselinePitch, detail } = prosody;
+  if (!baseF0?.length || !moraWavRanges?.length || !f0TotalSamples || !detail?.length) return null;
+
+  const flat = detail.flat();
+  const adjusted = [...baseF0];
+  for (let mi = 0; mi < moraWavRanges.length; mi += 1) {
+    if (mi >= flat.length) break;
+    const { start, end } = moraWavRanges[mi];
+    const i0 = Math.floor((start / f0TotalSamples) * adjusted.length);
+    const i1 = Math.min(adjusted.length - 1, Math.ceil((end / f0TotalSamples) * adjusted.length));
+    const delta =
+      moraPitchToHz(getMoraPitch(flat[mi])) - moraPitchToHz(baselinePitch[mi] ?? MORA_PITCH_DEFAULT);
+    if (Math.abs(delta) <= 0.01) continue;
+    for (let i = i0; i <= i1; i += 1) {
+      if (adjusted[i] > 50) adjusted[i] = Math.max(50, adjusted[i] + delta);
+    }
+  }
+  return adjusted;
+}
+
+/**
+ * @param {import('./state.js').SegmentMora[][]} detail
+ * @param {{ hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[]} moraDurations
+ * @param {number[]} f0
+ * @param {import('./state.js').SegmentProsody} entry
+ */
+function storeF0Metadata(entry, detail, moraDurations, f0) {
+  const flat = detail.flat();
+  let totalSamples = 1;
+  for (const md of moraDurations) {
+    const pp = md.phonemePitches;
+    if (!pp?.length) continue;
+    totalSamples = Math.max(totalSamples, pp[pp.length - 1].wavRange.end);
+  }
+
+  /** @type {import('./state.js').MoraWavRange[]} */
+  const moraWavRanges = [];
+  /** @type {number[]} */
+  const baselinePitch = [];
+  let moraIdx = 0;
+
+  for (const md of moraDurations) {
+    const hira = (md.hira || '').trim();
+    if (!hira || moraIdx >= flat.length) continue;
+    const pp = md.phonemePitches;
+    if (!pp?.length) continue;
+    const start = pp[0].wavRange.start;
+    const end = pp[pp.length - 1].wavRange.end;
+    moraWavRanges.push({ start, end });
+    baselinePitch.push(hzToMoraPitch(medianF0InRange(f0, start, end, totalSamples)));
+    moraIdx += 1;
+  }
+
+  entry.baseF0 = [...f0];
+  entry.baselinePitch = baselinePitch;
+  entry.moraWavRanges = moraWavRanges;
+  entry.f0TotalSamples = totalSamples;
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} entry
+ */
+function clearF0Metadata(entry) {
+  delete entry.baseF0;
+  delete entry.baselinePitch;
+  delete entry.moraWavRanges;
+  delete entry.f0TotalSamples;
+  delete entry.f0SpeedScale;
+}
+
+/**
  * @param {number[]} f0
  * @param {number} wavStart
  * @param {number} wavEnd
@@ -71,25 +193,13 @@ function medianF0InRange(f0, wavStart, wavEnd, totalSamples) {
  * @param {import('./state.js').SegmentMora[][]} detail
  * @param {{ hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[]} moraDurations
  * @param {number[]} f0
+ * @param {import('./state.js').SegmentProsody} entry
  */
-function applyF0ToProsodyDetail(detail, moraDurations, f0) {
+function applyF0ToProsodyDetail(detail, moraDurations, f0, entry) {
+  storeF0Metadata(entry, detail, moraDurations, f0);
   const flat = detail.flat();
-  let totalSamples = 1;
-  for (const md of moraDurations) {
-    const pp = md.phonemePitches;
-    if (!pp?.length) continue;
-    totalSamples = Math.max(totalSamples, pp[pp.length - 1].wavRange.end);
-  }
-  let moraIdx = 0;
-  for (const md of moraDurations) {
-    const hira = (md.hira || '').trim();
-    if (!hira || moraIdx >= flat.length) continue;
-    const pp = md.phonemePitches;
-    if (!pp?.length) continue;
-    const start = pp[0].wavRange.start;
-    const end = pp[pp.length - 1].wavRange.end;
-    flat[moraIdx].pitch = hzToMoraPitch(medianF0InRange(f0, start, end, totalSamples));
-    moraIdx += 1;
+  for (let i = 0; i < (entry.baselinePitch?.length ?? 0); i += 1) {
+    if (i < flat.length) flat[i].pitch = entry.baselinePitch[i];
   }
 }
 
@@ -97,8 +207,8 @@ function applyF0ToProsodyDetail(detail, moraDurations, f0) {
  * @param {string} text
  */
 async function fetchEstimateProsody(text) {
-  const res = await fetchWithTimeout(
-    `${DEFAULT_API_BASE}/v1/estimate_prosody`,
+  const res = await postCoeiroink(
+    '/v1/estimate_prosody',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -122,8 +232,8 @@ async function fetchEstimateProsody(text) {
  * @param {string} kana
  */
 async function fetchEstimateProsodyFromKana(kana) {
-  const res = await fetchWithTimeout(
-    `${DEFAULT_API_BASE}/v1/estimate_prosody_from_kana`,
+  const res = await postCoeiroink(
+    '/v1/estimate_prosody_from_kana',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -167,6 +277,21 @@ export async function reestimateProsodyFromKana(project, key) {
       if (i < oldPitches.length) flatNew[i].pitch = oldPitches[i];
     }
     entry.detail = newDetail;
+    const savedPitches = entry.detail.flat().map((m) => getMoraPitch(m));
+    try {
+      await fetchPredictF0ForProsody(
+        entry.text,
+        entry.detail,
+        entry,
+        getSentenceParams(project, key).speedScale,
+      );
+      const flatAfter = entry.detail.flat();
+      for (let i = 0; i < flatAfter.length; i += 1) {
+        if (i < savedPitches.length) flatAfter[i].pitch = savedPitches[i];
+      }
+    } catch (_) {
+      clearF0Metadata(entry);
+    }
     schedulePersist();
   } catch (e) {
     if (activeSentenceKey === key) {
@@ -203,11 +328,13 @@ export function scheduleProsodyKanaReestimate(project, key) {
 /**
  * @param {string} text
  * @param {import('./state.js').SegmentMora[][]} detail
+ * @param {import('./state.js').SegmentProsody} entry
+ * @param {number} [speedScale]
  */
-async function fetchPredictF0ForProsody(text, detail) {
+async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
   const styleId = await resolveMaitaStyleId();
-  const res = await fetchWithTimeout(
-    `${DEFAULT_API_BASE}/v1/predict_with_duration`,
+  const res = await postCoeiroink(
+    '/v1/predict_with_duration',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -215,8 +342,8 @@ async function fetchPredictF0ForProsody(text, detail) {
         speakerUuid: MAITA_UUID,
         styleId: styleId,
         text,
-        prosodyDetail: detail,
-        speedScale: 1,
+        prosodyDetail: prosodyDetailForApi(detail),
+        speedScale,
       }),
     },
     120000,
@@ -230,8 +357,8 @@ async function fetchPredictF0ForProsody(text, detail) {
   if (!pred.wavBase64 || !Array.isArray(pred.moraDurations)) {
     throw new Error('ピッチ推定の応答が不正です');
   }
-  const f0Res = await fetchWithTimeout(
-    `${DEFAULT_API_BASE}/v1/estimate_f0`,
+  const f0Res = await postCoeiroink(
+    '/v1/estimate_f0',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -253,7 +380,40 @@ async function fetchPredictF0ForProsody(text, detail) {
     detail,
     /** @type {typeof f0data.moraDurations} */ (f0data.moraDurations || pred.moraDurations),
     f0data.f0,
+    entry,
   );
+  entry.f0SpeedScale = speedScale;
+}
+
+/**
+ * スライダー調整を合成に反映するため、保存済みの F0 メタデータがなければ取得する。
+ * @param {string} text
+ * @param {import('./state.js').SegmentProsody} entry
+ * @param {number} [speedScale]
+ */
+export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
+  const speedChanged = entry.f0SpeedScale != null && entry.f0SpeedScale !== speedScale;
+  if (
+    !speedChanged &&
+    entry.baseF0?.length &&
+    entry.moraWavRanges?.length &&
+    entry.f0TotalSamples
+  ) {
+    return;
+  }
+  if (!entry.detail?.length) return;
+  const savedPitches = speedChanged ? null : entry.detail.flat().map((m) => getMoraPitch(m));
+  try {
+    await fetchPredictF0ForProsody(text, entry.detail, entry, speedScale);
+    if (savedPitches) {
+      const flat = entry.detail.flat();
+      for (let i = 0; i < flat.length; i += 1) {
+        if (i < savedPitches.length) flat[i].pitch = savedPitches[i];
+      }
+    }
+  } catch (_) {
+    /* 合成時のフォールバック失敗は adjustedF0 なしで続行 */
+  }
 }
 
 /**
@@ -269,13 +429,12 @@ export function remapSentenceProsody(project, prevRanges, newRanges) {
 
   for (const nr of newRanges) {
     if (oldMap[nr.key] && oldMap[nr.key].text === nr.text) {
-      const src = oldMap[nr.key];
-      next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(src.detail) };
+      next[nr.key] = cloneSegmentProsody(oldMap[nr.key]);
       continue;
     }
     const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
     if (prev && oldMap[prev.key] && oldMap[prev.key].text === nr.text) {
-      next[nr.key] = { text: nr.text, detail: cloneProsodyDetail(oldMap[prev.key].detail) };
+      next[nr.key] = cloneSegmentProsody(oldMap[prev.key]);
       usedOldKeys.add(prev.key);
     }
   }
@@ -383,7 +542,8 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
     notifyIntonationUi();
 
     try {
-      await fetchPredictF0ForProsody(trimmed, detail);
+      const speedScale = getSentenceParams(project, key).speedScale;
+      await fetchPredictF0ForProsody(trimmed, detail, project.sentenceProsodyByKey[key], speedScale);
     } catch (e) {
       if (prosodyFetchGeneration.get(key) === gen) {
         showToast(e instanceof Error ? e.message : String(e));

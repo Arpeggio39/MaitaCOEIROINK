@@ -22,7 +22,7 @@ import { schedulePersist } from './persist.js';
 import { ensureSegmentProsody } from './prosody.js';
 import { sentenceRangesFromText } from './segments.js';
 import { activeProject } from './state.js';
-import { exportAudio, resizeWaveformCanvas, togglePlayback } from './audio.js';
+import { exportActiveSentence, exportAudio, resizeWaveformCanvas, togglePlayback } from './audio.js';
 import {
   appendDictionaryRow,
   closeDictionaryModal,
@@ -92,6 +92,7 @@ export function bindEvents() {
   });
 
   els.btnSegmentParamReset.addEventListener('click', () => resetActiveSegmentParams());
+  els.btnSegmentExport.addEventListener('click', () => void exportActiveSentence());
 
   let intonationScrollSyncing = false;
   els.intonationTextStrip.addEventListener('scroll', () => {

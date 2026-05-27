@@ -2,7 +2,7 @@ import { PARAM_DEFAULTS } from './constants.js';
 import { bridge } from './bridge.js';
 import { initEditor, refreshValueLabels, updateSegmentPanelsVisibility } from './editor.js';
 import { bindEvents } from './events.js';
-import { loadDictionaryFromDisk } from './dictionary.js';
+import { loadDictionaryFromDisk, syncDictionaryToCoeiroink } from './dictionary.js';
 import { resizeWaveformCanvas } from './audio.js';
 import { migrateProjects, selectProject, syncActiveProjectFromUi } from './projects.js';
 import { loadAppSettingsFromDisk } from './settings.js';
@@ -21,6 +21,11 @@ async function boot() {
   resizeWaveformCanvas();
 
   await loadDictionaryFromDisk();
+  try {
+    await syncDictionaryToCoeiroink();
+  } catch (_) {
+    /* COEIROINK 未起動時は辞書同期をスキップ */
+  }
   await loadAppSettingsFromDisk();
 
   const blob = await bridge.loadProjects();

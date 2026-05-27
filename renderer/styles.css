@@ -608,6 +608,26 @@ button {
   cursor: ns-resize;
 }
 
+.btn-sentence-export {
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232, 72, 142, 0.45);
+  background: rgba(232, 72, 142, 0.12);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.btn-sentence-export:hover {
+  background: rgba(232, 72, 142, 0.2);
+  border-color: rgba(232, 72, 142, 0.6);
+}
+
+.btn-sentence-export:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .btn-sentence-reset {
   width: 100%;
   margin-top: 4px;
