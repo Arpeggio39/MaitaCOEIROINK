@@ -249,7 +249,7 @@
                 Padding="14,10" CornerRadius="8"
                 Background="{ThemeResource SystemFillColorSolidNeutralBackground}"
                 Visibility="Collapsed">
-            <TextBlock Text="{x:Bind ViewModel.ToastMessage, Mode=OneWay}" />
+            <TextBlock x:Name="ToastText" Text="" />
         </Border>
 
         <ProgressRing x:Name="BusyRing" Grid.ColumnSpan="2" Width="48" Height="48"

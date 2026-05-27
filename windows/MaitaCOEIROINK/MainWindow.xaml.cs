@@ -75,6 +75,10 @@ public sealed partial class MainWindow : Window
         {
             PlayIcon.Glyph = ViewModel.IsPlaying ? "\uE71A" : "\uE768";
         }
+        else if (e.PropertyName == nameof(MainViewModel.ToastMessage))
+        {
+            ToastText.Text = ViewModel.ToastMessage;
+        }
         else if (e.PropertyName == nameof(MainViewModel.IsToastVisible))
         {
             ToastPanel.Visibility = ViewModel.IsToastVisible ? Visibility.Visible : Visibility.Collapsed;
