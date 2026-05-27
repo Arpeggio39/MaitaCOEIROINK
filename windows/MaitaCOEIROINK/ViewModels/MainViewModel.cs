@@ -59,6 +59,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _toastMessage = "";
     [ObservableProperty] private bool _isToastVisible;
     [ObservableProperty] private int _exportSamplingRate = AppConstants.ExportSampleRateDefault;
+    [ObservableProperty] private int _exportSamplingRateIndex;
     [ObservableProperty] private bool _isBusy;
 
     [ObservableProperty] private double _speedScale = 1;
@@ -79,20 +80,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public List<int> SampleRateOptions { get; } = AppConstants.SampleRateOptions.ToList();
     public List<string> ProcessingAlgorithms { get; } = ["td-psola", "world", "resampling"];
 
-    public int ExportSamplingRateIndex
-    {
-        get
-        {
-            var idx = Array.IndexOf(AppConstants.SampleRateOptions, ExportSamplingRate);
-            return idx >= 0 ? idx : Array.IndexOf(AppConstants.SampleRateOptions, AppConstants.ExportSampleRateDefault);
-        }
-        set
-        {
-            if (value < 0 || value >= AppConstants.SampleRateOptions.Length) return;
-            ExportSamplingRate = AppConstants.SampleRateOptions[value];
-        }
-    }
-
     public async Task InitializeAsync()
     {
         _dictionaryEntries = await _storage.LoadDictionaryAsync();
@@ -107,6 +94,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var settings = await _storage.LoadAppSettingsAsync();
         ExportSamplingRate = settings.ExportSamplingRate;
+        SyncExportSamplingRateIndex();
         var blob = await _storage.LoadProjectsAsync();
         _projects = blob.Projects;
         MigrateProjects(_projects);
@@ -186,10 +174,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnProcessingAlgorithmChanged(string value) => OnParamChanged();
 
+    partial void OnExportSamplingRateIndexChanged(int value)
+    {
+        if (value < 0 || value >= AppConstants.SampleRateOptions.Length) return;
+        if (ExportSamplingRate != AppConstants.SampleRateOptions[value])
+        {
+            ExportSamplingRate = AppConstants.SampleRateOptions[value];
+        }
+    }
+
     partial void OnExportSamplingRateChanged(int value)
     {
-        OnPropertyChanged(nameof(ExportSamplingRateIndex));
+        SyncExportSamplingRateIndex();
         _ = PersistAppSettingsAsync();
+    }
+
+    private void SyncExportSamplingRateIndex()
+    {
+        var idx = Array.IndexOf(AppConstants.SampleRateOptions, ExportSamplingRate);
+        var next = idx >= 0 ? idx : Array.IndexOf(AppConstants.SampleRateOptions, AppConstants.ExportSampleRateDefault);
+        if (ExportSamplingRateIndex != next) ExportSamplingRateIndex = next;
     }
 
     private void OnParamChanged()
