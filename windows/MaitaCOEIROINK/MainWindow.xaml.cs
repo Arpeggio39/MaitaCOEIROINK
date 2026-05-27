@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     {
         ViewModel = new MainViewModel(DispatcherQueue.GetForCurrentThread());
         InitializeComponent();
+        BindingRoot.DataContext = ViewModel;
         ViewModel.SegmentMirrorChanged += (_, _) => ViewModel.BuildSegmentMirror(SegmentMirror);
         ViewModel.MoraSpans.CollectionChanged += (_, _) => RebuildIntonationUi();
         ViewModel.MoraCells.CollectionChanged += (_, _) => RebuildIntonationUi();
