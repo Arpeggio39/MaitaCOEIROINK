@@ -18,6 +18,7 @@
         <helpers:ActiveProjectBrushConverter x:Key="ActiveProjectBrushConverter" />
         <helpers:UpdatedLabelConverter x:Key="UpdatedLabelConverter" />
         <helpers:PlayStopGlyphConverter x:Key="PlayStopGlyphConverter" />
+        <helpers:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </Window.Resources>
 
     <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
@@ -27,8 +28,10 @@
         </Grid.ColumnDefinitions>
 
         <!-- Sidebar (Electron と同じ 260px) -->
-        <Grid Grid.Column="0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -41,10 +44,10 @@
                             Background="{ThemeResource AccentFillColorDefaultBrush}">
                         <FontIcon Glyph="&#xE8D4;" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
-                        <Run FontWeight="SemiBold" FontSize="15" Text="琵音マイタ" />
-                        <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text=" for COEIROINK" />
-                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold" FontSize="15" Text="琵音マイタ" />
+                        <TextBlock FontSize="15" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text=" for COEIROINK" />
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
 
@@ -60,8 +63,9 @@
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProjectItemClick">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:ProjectListItem">
-                        <Grid Padding="12,8" CornerRadius="8"
-                              Background="{x:Bind IsActive, Converter={StaticResource ActiveProjectBrushConverter}}">
+                        <Border Padding="12,8" CornerRadius="8"
+                                Background="{x:Bind IsActive, Converter={StaticResource ActiveProjectBrushConverter}}">
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -75,10 +79,12 @@
                             <Button Grid.Column="1" Content="×" VerticalAlignment="Top"
                                     Tag="{x:Bind Project.Id}" Click="OnDeleteProjectClick" />
                         </Grid>
+                        </Border>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
         </Grid>
+        </Border>
 
         <!-- Main -->
         <Grid x:Name="RootGrid" Grid.Column="1">
@@ -88,9 +94,10 @@
             </Grid.RowDefinitions>
 
             <!-- Header toolbar -->
-            <Grid Grid.Row="0" Padding="16,12" ColumnSpacing="12"
-                  Background="{ThemeResource LayerFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+            <Border Grid.Row="0"
+                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+            <Grid Padding="16,12" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />
                     <ColumnDefinition Width="*" />
@@ -101,13 +108,15 @@
                     <TextBlock x:Name="TitleBlock" FontSize="20" FontWeight="SemiBold"
                                Text="{x:Bind ViewModel.ProjectTitle, Mode=OneWay}"
                                Tapped="OnTitleTapped" />
-                    <TextBox x:Name="TitleBox" Visibility="{x:Bind ViewModel.IsTitleEditVisible, Mode=OneWay}"
+                    <TextBox x:Name="TitleBox"
+                             Visibility="{x:Bind ViewModel.IsTitleEditVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
                              Text="{x:Bind ViewModel.TitleEditText, Mode=TwoWay}"
                              LostFocus="OnTitleLostFocus" KeyDown="OnTitleKeyDown" />
                 </StackPanel>
 
                 <ProgressBar x:Name="WaveformBar" Grid.Column="1" Height="22" Maximum="100" IsIndeterminate="True"
-                             Visibility="{x:Bind ViewModel.IsPlaying, Mode=OneWay}" VerticalAlignment="Center" />
+                             Visibility="{x:Bind ViewModel.IsPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                             VerticalAlignment="Center" />
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <Button ToolTipService.ToolTip="再生/停止" Command="{x:Bind ViewModel.TogglePlaybackCommand}">
@@ -120,6 +129,7 @@
                               SelectedItem="{x:Bind ViewModel.ExportSamplingRate, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
+            </Border>
 
             <!-- Workspace -->
             <Grid Grid.Row="1">
@@ -153,7 +163,7 @@
                     <Border Grid.Row="1" Margin="16,0,8,12" Padding="12,10"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
-                            Visibility="{x:Bind ViewModel.IsIntonationVisible, Mode=OneWay}">
+                            Visibility="{x:Bind ViewModel.IsIntonationVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Grid RowSpacing="8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -171,9 +181,10 @@
                 </Grid>
 
                 <!-- Param pane (300px, Electron と同じ) -->
-                <ScrollViewer Grid.Column="1" Padding="20,18,20,24"
-                              Visibility="{x:Bind ViewModel.IsParamPaneVisible, Mode=OneWay}"
-                              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
+                <Border Grid.Column="1"
+                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1,0,0,0"
+                        Visibility="{x:Bind ViewModel.IsParamPaneVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                <ScrollViewer Padding="20,18,20,24">
                     <StackPanel Spacing="16">
                         <Button Content="この文章を書き出し" HorizontalAlignment="Stretch"
                                 Style="{StaticResource AccentButtonStyle}"
@@ -237,6 +248,7 @@
                                 Command="{x:Bind ViewModel.ResetSegmentParamsCommand}" />
                     </StackPanel>
                 </ScrollViewer>
+                </Border>
             </Grid>
         </Grid>
 
@@ -244,12 +256,12 @@
         <Border Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
                 Padding="14,10" CornerRadius="8"
                 Background="{ThemeResource SystemFillColorSolidNeutralBackground}"
-                Visibility="{x:Bind ViewModel.IsToastVisible, Mode=OneWay}">
+                Visibility="{x:Bind ViewModel.IsToastVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
             <TextBlock Text="{x:Bind ViewModel.ToastMessage, Mode=OneWay}" />
         </Border>
 
         <ProgressRing Grid.ColumnSpan="2" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}" />
+                      Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}" />
     </Grid>
 </Window>

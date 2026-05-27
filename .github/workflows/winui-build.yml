@@ -28,6 +28,17 @@ jobs:
       - name: Build
         run: dotnet build MaitaCOEIROINK.sln -c Release -p:Platform=x64
 
+      - name: Show build diagnostics on failure
+        if: failure()
+        shell: pwsh
+        working-directory: windows
+        run: |
+          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Filter "output.json" | ForEach-Object {
+            Write-Host "=== $($_.FullName) ==="
+            Get-Content $_.FullName
+          }
+          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Filter "*.xaml*" | Select-Object -First 20 | ForEach-Object { Write-Host $_.FullName }
+
       - name: Publish
         run: dotnet publish MaitaCOEIROINK/MaitaCOEIROINK.csproj -c Release -p:Platform=x64 -o ../dist/winui
 

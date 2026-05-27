@@ -232,7 +232,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void DismissSentenceSelection() => ClearSentenceSelection();
 
     [RelayCommand]
-    private void SelectProjectCommand(string? id)
+    private void SelectProject(string? id)
     {
         if (string.IsNullOrEmpty(id) || id == _activeId) return;
         SaveActiveSegmentParams();
@@ -413,7 +413,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             }
             else if (SegmentParser.HasCustomSentenceParams(project, r.Key))
             {
-                run.Foreground = Application.Current.Resources["TextSecondaryBrush"] as Brush;
+                run.Foreground = Application.Current.Resources["TextFillColorSecondaryBrush"] as Brush;
             }
 
             mirror.Inlines.Add(run);
