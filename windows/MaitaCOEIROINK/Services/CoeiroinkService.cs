@@ -72,7 +72,7 @@ public sealed class CoeiroinkService
                 numMoras = LocalStorageService.CountMorasFromYomi(e.Yomi),
             }),
         };
-        await PostJsonAsync("/v1/set_dictionary", payload, 20000, ct);
+        await PostJsonRawAsync("/v1/set_dictionary", payload, 20000, ct);
     }
 
     public async Task<List<List<SegmentMora>>> EstimateProsodyAsync(string text, CancellationToken ct = default)

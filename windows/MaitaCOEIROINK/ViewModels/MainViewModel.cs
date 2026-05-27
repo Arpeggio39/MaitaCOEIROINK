@@ -753,10 +753,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task PlayBufferAsync(byte[] buf)
     {
-        var temp = await StorageFolder.CreateFileAsync(
+        var folder = ApplicationData.Current.LocalFolder;
+        var temp = await folder.CreateFileAsync(
             $"maita-playback-{Guid.NewGuid():N}.wav",
-            CreationCollisionOption.ReplaceExisting,
-            StorageFolder.ApplicationData);
+            CreationCollisionOption.ReplaceExisting);
         await FileIO.WriteBytesAsync(temp, buf);
         _mediaPlayer.Source = MediaSource.CreateFromStorageFile(temp);
         _mediaPlayer.Play();

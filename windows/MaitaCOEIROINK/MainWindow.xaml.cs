@@ -29,7 +29,7 @@ public sealed partial class MainWindow : Window
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ExtendsContentIntoTitleBar = true;
         SetWindowSize(1280, 800);
-        Loaded += OnLoaded;
+        RootGrid.Loaded += OnLoaded;
         RootGrid.KeyDown += OnRootKeyDown;
     }
 
@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Loaded -= OnLoaded;
+        RootGrid.Loaded -= OnLoaded;
         _suppressEditorChange = true;
         Editor.Text = ViewModel.EditorText;
         _suppressEditorChange = false;
