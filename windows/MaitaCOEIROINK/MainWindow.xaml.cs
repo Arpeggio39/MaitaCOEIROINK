@@ -100,7 +100,7 @@ public sealed partial class MainWindow : Window
     private void OnEditorTextChanged(object sender, TextBoxTextChangingEventArgs e)
     {
         if (_suppressEditorChange) return;
-        ViewModel.OnEditorTextChanged(Editor.Text);
+        ViewModel.ApplyEditorTextChange(Editor.Text);
     }
 
     private void OnEditorSelectionChanged(object sender, RoutedEventArgs e)

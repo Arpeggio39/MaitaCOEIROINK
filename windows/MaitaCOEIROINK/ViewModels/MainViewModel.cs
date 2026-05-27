@@ -118,10 +118,10 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _activeId = blob.ActiveId is not null && _projects.Any(p => p.Id == blob.ActiveId)
             ? blob.ActiveId
             : _projects[0].Id;
-        SelectProject(_activeId);
+        ApplyProjectSelection(_activeId);
     }
 
-    public void OnEditorTextChanged(string text)
+    public void ApplyEditorTextChange(string text)
     {
         EditorText = text;
         var project = ActiveProject;
@@ -207,7 +207,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var p = CreateBlankProject();
         _projects.Insert(0, p);
         _activeId = p.Id;
-        SelectProject(p.Id);
+        ApplyProjectSelection(p.Id);
         SchedulePersist();
     }
 
@@ -237,7 +237,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (wasActive)
         {
             _activeId = _projects[0].Id;
-            SelectProject(_activeId);
+            ApplyProjectSelection(_activeId);
         }
         else
         {
@@ -255,7 +255,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (string.IsNullOrEmpty(id) || id == _activeId) return;
         SaveActiveSegmentParams();
         SyncActiveProjectFromUi();
-        SelectProject(id);
+        ApplyProjectSelection(id);
         SchedulePersist();
     }
 
@@ -455,7 +455,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         UpdatedAt = DateTime.UtcNow.ToString("o"),
     };
 
-    private void SelectProject(string id)
+    private void ApplyProjectSelection(string id)
     {
         if (_activeId != id) SaveActiveSegmentParams();
         _activeId = id;

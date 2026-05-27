@@ -3,9 +3,9 @@ using MaitaCOEIROINK.Models;
 
 namespace MaitaCOEIROINK.Services;
 
-public static partial class SegmentParser
+public static class SegmentParser
 {
-    private static readonly Regex PunctRegex = SegmentPunctRegex();
+    private static readonly Regex PunctRegex = new(AppConstants.SegmentPunctPattern, RegexOptions.Compiled);
 
     public static bool IsSegmentPunctuation(char ch) => PunctRegex.IsMatch(ch.ToString());
 
@@ -149,7 +149,4 @@ public static partial class SegmentParser
 
     public static bool HasCustomSentenceParams(Project? project, string key)
         => project?.SentenceParamsByKey.ContainsKey(key) == true;
-
-    [GeneratedRegex(AppConstants.SegmentPunctPattern)]
-    private static partial Regex SegmentPunctRegex();
 }
