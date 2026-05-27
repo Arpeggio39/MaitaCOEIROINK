@@ -6,7 +6,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:MaitaCOEIROINK.Models"
-    xmlns:viewmodels="using:MaitaCOEIROINK.ViewModels"
     mc:Ignorable="d"
     Title="琵音マイタ for COEIROINK">
 
@@ -14,8 +13,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="BindingRoot" x:DataType="viewmodels:MainViewModel"
-          Background="{ThemeResource LayerFillColorDefaultBrush}">
+    <Grid x:Name="BindingRoot" Background="{ThemeResource LayerFillColorDefaultBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="260" />
             <ColumnDefinition Width="*" />
@@ -47,13 +45,13 @@
 
             <StackPanel Grid.Row="1" Padding="14,0,14,10" Spacing="8">
                 <Button Content="＋ 新規プロジェクト" HorizontalAlignment="Stretch"
-                        Command="{x:Bind NewProjectCommand}" />
+                        Command="{x:Bind ViewModel.NewProjectCommand}" />
                 <Button Content="読み上げ辞書" HorizontalAlignment="Stretch"
-                        Command="{x:Bind OpenDictionaryCommand}" />
+                        Command="{x:Bind ViewModel.OpenDictionaryCommand}" />
             </StackPanel>
 
             <ListView x:Name="ProjectList" Grid.Row="2" Padding="10,6"
-                      ItemsSource="{x:Bind ProjectItems, Mode=OneWay}"
+                      ItemsSource="{x:Bind ViewModel.ProjectItems, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProjectItemClick">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:ProjectListItem">
@@ -100,27 +98,27 @@
 
                 <StackPanel Grid.Column="0" Spacing="4">
                     <TextBlock x:Name="TitleBlock" FontSize="20" FontWeight="SemiBold"
-                               Text="{x:Bind ProjectTitle, Mode=OneWay}"
+                               Text="{x:Bind ViewModel.ProjectTitle, Mode=OneWay}"
                                Tapped="OnTitleTapped" />
                     <TextBox x:Name="TitleBox"
-                             Visibility="{x:Bind IsTitleEditVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
-                             Text="{x:Bind TitleEditText, Mode=TwoWay}"
+                             Visibility="{x:Bind ViewModel.IsTitleEditVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                             Text="{x:Bind ViewModel.TitleEditText, Mode=TwoWay}"
                              LostFocus="OnTitleLostFocus" KeyDown="OnTitleKeyDown" />
                 </StackPanel>
 
                 <ProgressBar x:Name="WaveformBar" Grid.Column="1" Height="22" Maximum="100" IsIndeterminate="True"
-                             Visibility="{x:Bind IsPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
+                             Visibility="{x:Bind ViewModel.IsPlaying, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}"
                              VerticalAlignment="Center" />
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button ToolTipService.ToolTip="再生/停止" Command="{x:Bind TogglePlaybackCommand}">
-                        <FontIcon Glyph="{x:Bind IsPlaying, Mode=OneWay, Converter={StaticResource PlayStopGlyphConverter}}" />
+                    <Button ToolTipService.ToolTip="再生/停止" Command="{x:Bind ViewModel.TogglePlaybackCommand}">
+                        <FontIcon x:Name="PlayIcon" Glyph="&#xE768;" />
                     </Button>
-                    <Button ToolTipService.ToolTip="書き出し（WAV）" Command="{x:Bind ExportAllCommand}">
+                    <Button ToolTipService.ToolTip="書き出し（WAV）" Command="{x:Bind ViewModel.ExportAllCommand}">
                         <FontIcon Glyph="&#xE898;" />
                     </Button>
-                    <ComboBox Width="88" ItemsSource="{x:Bind SampleRateOptions, Mode=OneWay}"
-                              SelectedIndex="{x:Bind ExportSamplingRateIndex, Mode=TwoWay}" />
+                    <ComboBox Width="88" ItemsSource="{x:Bind ViewModel.SampleRateOptions, Mode=OneWay}"
+                              SelectedIndex="{x:Bind ViewModel.ExportSamplingRateIndex, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
             </Border>
@@ -157,7 +155,7 @@
                     <Border Grid.Row="1" Margin="16,0,8,12" Padding="12,10"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
-                            Visibility="{x:Bind IsIntonationVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                            Visibility="{x:Bind ViewModel.IsIntonationVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Grid RowSpacing="8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -165,7 +163,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Button Grid.Row="0" HorizontalAlignment="Left" Style="{StaticResource AccentButtonStyle}"
-                                    Content="韻律を再取得" Command="{x:Bind RegenerateProsodyCommand}" />
+                                    Content="韻律を再取得" Command="{x:Bind ViewModel.RegenerateProsodyCommand}" />
                             <ScrollViewer x:Name="IntonationTextScroll" Grid.Row="1" HorizontalScrollBarVisibility="Auto"
                                           VerticalScrollBarVisibility="Disabled" ViewChanged="OnIntonationScrollChanged" />
                             <ScrollViewer x:Name="IntonationSliderScroll" Grid.Row="2" HorizontalScrollBarVisibility="Auto"
@@ -177,69 +175,69 @@
                 <!-- Param pane (300px, Electron と同じ) -->
                 <Border Grid.Column="1"
                         BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1,0,0,0"
-                        Visibility="{x:Bind IsParamPaneVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                        Visibility="{x:Bind ViewModel.IsParamPaneVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
                 <ScrollViewer Padding="20,18,20,24">
                     <StackPanel Spacing="16">
                         <Button Content="この文章を書き出し" HorizontalAlignment="Stretch"
                                 Style="{StaticResource AccentButtonStyle}"
-                                Command="{x:Bind ExportActiveSentenceCommand}" />
+                                Command="{x:Bind ViewModel.ExportActiveSentenceCommand}" />
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="話速" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind SpeedScaleLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.SpeedScaleLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="0.5" Maximum="2" StepFrequency="0.01" Value="{x:Bind SpeedScale, Mode=TwoWay}" />
+                            <Slider Minimum="0.5" Maximum="2" StepFrequency="0.01" Value="{x:Bind ViewModel.SpeedScale, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="声の高さ" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind PitchScaleLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.PitchScaleLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="-0.15" Maximum="0.15" StepFrequency="0.01" Value="{x:Bind PitchScale, Mode=TwoWay}" />
+                            <Slider Minimum="-0.15" Maximum="0.15" StepFrequency="0.01" Value="{x:Bind ViewModel.PitchScale, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <TextBlock Text="ピッチ加工" />
-                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{x:Bind ProcessingAlgorithms, Mode=OneWay}"
-                                      SelectedItem="{x:Bind ProcessingAlgorithm, Mode=TwoWay}" />
+                            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.ProcessingAlgorithms, Mode=OneWay}"
+                                      SelectedItem="{x:Bind ViewModel.ProcessingAlgorithm, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="抑揚" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind IntonationScaleLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.IntonationScaleLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="0" Maximum="2" StepFrequency="0.01" Value="{x:Bind IntonationScale, Mode=TwoWay}" />
+                            <Slider Minimum="0" Maximum="2" StepFrequency="0.01" Value="{x:Bind ViewModel.IntonationScale, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="音量" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind VolumeScaleLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.VolumeScaleLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="0" Maximum="2" StepFrequency="0.01" Value="{x:Bind VolumeScale, Mode=TwoWay}" />
+                            <Slider Minimum="0" Maximum="2" StepFrequency="0.01" Value="{x:Bind ViewModel.VolumeScale, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="開始無音" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind PrePhonemeLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.PrePhonemeLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="0" Maximum="1" StepFrequency="0.01" Value="{x:Bind PrePhonemeLength, Mode=TwoWay}" />
+                            <Slider Minimum="0" Maximum="1" StepFrequency="0.01" Value="{x:Bind ViewModel.PrePhonemeLength, Mode=TwoWay}" />
                         </StackPanel>
 
                         <StackPanel Spacing="6">
                             <Grid>
                                 <TextBlock Text="終了無音" />
-                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind PostPhonemeLabel, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Right" Text="{x:Bind ViewModel.PostPhonemeLabel, Mode=OneWay}" />
                             </Grid>
-                            <Slider Minimum="0" Maximum="1" StepFrequency="0.01" Value="{x:Bind PostPhonemeLength, Mode=TwoWay}" />
+                            <Slider Minimum="0" Maximum="1" StepFrequency="0.01" Value="{x:Bind ViewModel.PostPhonemeLength, Mode=TwoWay}" />
                         </StackPanel>
 
                         <Button Content="既定値に戻す" HorizontalAlignment="Stretch"
-                                Command="{x:Bind ResetSegmentParamsCommand}" />
+                                Command="{x:Bind ViewModel.ResetSegmentParamsCommand}" />
                     </StackPanel>
                 </ScrollViewer>
                 </Border>
@@ -247,15 +245,15 @@
         </Grid>
 
         <!-- Toast -->
-        <Border Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
+        <Border x:Name="ToastPanel" Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
                 Padding="14,10" CornerRadius="8"
                 Background="{ThemeResource SystemFillColorSolidNeutralBackground}"
-                Visibility="{x:Bind IsToastVisible, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{x:Bind ToastMessage, Mode=OneWay}" />
+                Visibility="Collapsed">
+            <TextBlock Text="{x:Bind ViewModel.ToastMessage, Mode=OneWay}" />
         </Border>
 
-        <ProgressRing Grid.ColumnSpan="2" Width="48" Height="48" IsActive="{x:Bind IsBusy, Mode=OneWay}"
+        <ProgressRing x:Name="BusyRing" Grid.ColumnSpan="2" Width="48" Height="48"
                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                      Visibility="{x:Bind IsBusy, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}" />
+                      Visibility="Collapsed" IsActive="False" />
     </Grid>
 </Window>

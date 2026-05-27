@@ -23,7 +23,6 @@ public sealed partial class MainWindow : Window
     {
         ViewModel = new MainViewModel(DispatcherQueue.GetForCurrentThread());
         InitializeComponent();
-        BindingRoot.DataContext = ViewModel;
         ViewModel.SegmentMirrorChanged += (_, _) => ViewModel.BuildSegmentMirror(SegmentMirror);
         ViewModel.MoraSpans.CollectionChanged += (_, _) => RebuildIntonationUi();
         ViewModel.MoraCells.CollectionChanged += (_, _) => RebuildIntonationUi();
@@ -71,6 +70,19 @@ public sealed partial class MainWindow : Window
                 TitleBox.Focus(FocusState.Programmatic);
                 TitleBox.SelectAll();
             }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsPlaying))
+        {
+            PlayIcon.Glyph = ViewModel.IsPlaying ? "\uE71A" : "\uE768";
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsToastVisible))
+        {
+            ToastPanel.Visibility = ViewModel.IsToastVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsBusy))
+        {
+            BusyRing.IsActive = ViewModel.IsBusy;
+            BusyRing.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
