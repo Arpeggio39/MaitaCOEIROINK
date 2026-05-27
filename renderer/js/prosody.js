@@ -267,17 +267,19 @@ export async function reestimateProsodyFromKana(project, key) {
   kanaReestimateInFlight.add(key);
   if (activeSentenceKey === key) notifyIntonationUi();
 
-  const oldPitches = entry.detail.flat().map((m) => getMoraPitch(m));
+  const hadUserEdits = hasProsodyPitchEdits(entry);
+  const oldPitches = hadUserEdits ? entry.detail.flat().map((m) => getMoraPitch(m)) : null;
 
   try {
     const newDetail = await fetchEstimateProsodyFromKana(kana);
     applyDefaultMoraPitches(newDetail);
-    const flatNew = newDetail.flat();
-    for (let i = 0; i < flatNew.length; i += 1) {
-      if (i < oldPitches.length) flatNew[i].pitch = oldPitches[i];
+    if (oldPitches) {
+      const flatNew = newDetail.flat();
+      for (let i = 0; i < flatNew.length; i += 1) {
+        if (i < oldPitches.length) flatNew[i].pitch = oldPitches[i];
+      }
     }
     entry.detail = newDetail;
-    const savedPitches = entry.detail.flat().map((m) => getMoraPitch(m));
     try {
       await fetchPredictF0ForProsody(
         entry.text,
@@ -285,9 +287,11 @@ export async function reestimateProsodyFromKana(project, key) {
         entry,
         getSentenceParams(project, key).speedScale,
       );
-      const flatAfter = entry.detail.flat();
-      for (let i = 0; i < flatAfter.length; i += 1) {
-        if (i < savedPitches.length) flatAfter[i].pitch = savedPitches[i];
+      if (oldPitches) {
+        const flatAfter = entry.detail.flat();
+        for (let i = 0; i < flatAfter.length; i += 1) {
+          if (i < oldPitches.length) flatAfter[i].pitch = oldPitches[i];
+        }
       }
     } catch (_) {
       clearF0Metadata(entry);
@@ -391,6 +395,16 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
  * @param {import('./state.js').SegmentProsody} entry
  * @param {number} [speedScale]
  */
+export function reconcileDefaultPitchesWithBaseline(prosody) {
+  const baseline = prosody.baselinePitch;
+  const flat = prosody.detail?.flat() ?? [];
+  if (!baseline?.length || baseline.length !== flat.length) return;
+  if (!flat.every((m) => getMoraPitch(m) === MORA_PITCH_DEFAULT)) return;
+  for (let i = 0; i < flat.length; i += 1) {
+    flat[i].pitch = baseline[i];
+  }
+}
+
 export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
   const speedChanged = entry.f0SpeedScale != null && entry.f0SpeedScale !== speedScale;
   if (
@@ -399,10 +413,13 @@ export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
     entry.moraWavRanges?.length &&
     entry.f0TotalSamples
   ) {
+    reconcileDefaultPitchesWithBaseline(entry);
     return;
   }
   if (!entry.detail?.length) return;
-  const savedPitches = speedChanged ? null : entry.detail.flat().map((m) => getMoraPitch(m));
+  const hadUserEdits = hasProsodyPitchEdits(entry);
+  const savedPitches =
+    speedChanged || !hadUserEdits ? null : entry.detail.flat().map((m) => getMoraPitch(m));
   try {
     await fetchPredictF0ForProsody(text, entry.detail, entry, speedScale);
     if (savedPitches) {

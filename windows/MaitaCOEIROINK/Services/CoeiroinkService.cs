@@ -127,25 +127,33 @@ public sealed class CoeiroinkService
         var kana = string.Concat(entry.Detail.SelectMany(p => p).Select(m => m.Hira)).Trim();
         if (kana.Length == 0) return;
 
-        var oldPitches = entry.Detail.SelectMany(p => p).Select(m => m.GetPitch()).ToList();
+        var hadUserEdits = HasProsodyPitchEdits(entry);
+        List<double>? oldPitches = hadUserEdits
+            ? entry.Detail.SelectMany(p => p).Select(m => m.GetPitch()).ToList()
+            : null;
         var newDetail = await EstimateProsodyFromKanaAsync(kana, ct);
         ApplyDefaultMoraPitches(newDetail);
-        var flatNew = newDetail.SelectMany(p => p).ToList();
-        for (var i = 0; i < flatNew.Count; i++)
+        if (oldPitches != null)
         {
-            if (i < oldPitches.Count) flatNew[i].Pitch = oldPitches[i];
+            var flatNew = newDetail.SelectMany(p => p).ToList();
+            for (var i = 0; i < flatNew.Count; i++)
+            {
+                if (i < oldPitches.Count) flatNew[i].Pitch = oldPitches[i];
+            }
         }
 
         entry.Detail = newDetail;
-        var savedPitches = entry.Detail.SelectMany(p => p).Select(m => m.GetPitch()).ToList();
         try
         {
             var speedScale = SegmentParser.GetSentenceParams(project, key).SpeedScale;
             await FetchPredictF0ForProsodyAsync(entry.Text, entry.Detail, entry, speedScale, ct);
-            flatNew = entry.Detail.SelectMany(p => p).ToList();
-            for (var i = 0; i < flatNew.Count; i++)
+            if (oldPitches != null)
             {
-                if (i < savedPitches.Count) flatNew[i].Pitch = savedPitches[i];
+                var flatAfter = entry.Detail.SelectMany(p => p).ToList();
+                for (var i = 0; i < flatAfter.Count; i++)
+                {
+                    if (i < oldPitches.Count) flatAfter[i].Pitch = oldPitches[i];
+                }
             }
         }
         catch
@@ -158,16 +166,30 @@ public sealed class CoeiroinkService
         }
     }
 
+    public static void ReconcileDefaultPitchesWithBaseline(SegmentProsody prosody)
+    {
+        var baseline = prosody.BaselinePitch;
+        var flat = prosody.Detail.SelectMany(p => p).ToList();
+        if (baseline is not { Count: > 0 } || baseline.Count != flat.Count) return;
+        if (!flat.All(m => Math.Abs(m.GetPitch() - AppConstants.MoraPitchDefault) < 0.001)) return;
+        for (var i = 0; i < flat.Count; i++)
+        {
+            flat[i].Pitch = baseline[i];
+        }
+    }
+
     public async Task EnsureProsodyF0MetadataAsync(string text, SegmentProsody entry, double speedScale, CancellationToken ct = default)
     {
         var speedChanged = entry.F0SpeedScale != null && entry.F0SpeedScale != speedScale;
         if (!speedChanged && entry.BaseF0 is { Count: > 0 } && entry.MoraWavRanges is { Count: > 0 } && entry.F0TotalSamples > 0)
         {
+            ReconcileDefaultPitchesWithBaseline(entry);
             return;
         }
 
         if (entry.Detail.Count == 0) return;
-        List<double>? savedPitches = speedChanged
+        var hadUserEdits = HasProsodyPitchEdits(entry);
+        List<double>? savedPitches = speedChanged || !hadUserEdits
             ? null
             : entry.Detail.SelectMany(p => p).Select(m => m.GetPitch()).ToList();
         try
