@@ -36,13 +36,29 @@ jobs:
         shell: pwsh
         working-directory: windows
         run: |
-          if (Test-Path build.log) { Get-Content build.log -Tail 300 }
-          $out = "MaitaCOEIROINK/obj/x64/Release/net8.0-windows10.0.19041.0/output.json"
+          if (Test-Path build.log) {
+            Write-Host "=== build.log (errors) ==="
+            Select-String -Path build.log -Pattern "error (CS|WMC|MSB)" | ForEach-Object { $_.Line }
+            Get-Content build.log -Tail 120
+          }
+          $objDir = "MaitaCOEIROINK/obj/x64/Release/net8.0-windows10.0.19041.0"
+          $out = "$objDir/output.json"
           if (Test-Path $out) {
+            Write-Host "=== output.json errors ==="
             $data = Get-Content $out -Raw | ConvertFrom-Json
             if ($data.Errors) { $data.Errors | ConvertTo-Json -Depth 8 }
           } else {
-            Write-Host "output.json not found"
+            Write-Host "output.json not found; re-running XamlCompiler"
+            $input = "$objDir/input.json"
+            $sdk = Get-ChildItem "$env:USERPROFILE\.nuget\packages\microsoft.windowsappsdk" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+            $compiler = Join-Path $sdk.FullName "tools\net472\XamlCompiler.exe"
+            if ((Test-Path $compiler) -and (Test-Path $input)) {
+              & $compiler $input $out 2>&1
+              if (Test-Path $out) {
+                $data = Get-Content $out -Raw | ConvertFrom-Json
+                if ($data.Errors) { $data.Errors | ConvertTo-Json -Depth 8 }
+              }
+            }
           }
 
       - name: Publish

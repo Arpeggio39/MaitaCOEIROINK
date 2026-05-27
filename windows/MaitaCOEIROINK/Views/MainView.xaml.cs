@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using MaitaCOEIROINK.Models;
 using MaitaCOEIROINK.ViewModels;
 using Microsoft.UI.Xaml;
@@ -14,39 +15,91 @@ public sealed partial class MainView : UserControl
     private StackPanel? _moraTextPanel;
     private StackPanel? _moraSliderPanel;
 
-    public MainViewModel? ViewModel
-    {
-        get => DataContext as MainViewModel;
-        set => DataContext = value;
-    }
+    public MainViewModel ViewModel { get; }
 
-    public MainView()
-    {
-        InitializeComponent();
-        Loaded += OnLoaded;
-        RootGrid.KeyDown += OnRootKeyDown;
-    }
-
-    public void BindViewModel(MainViewModel viewModel)
+    public MainView(MainViewModel viewModel)
     {
         ViewModel = viewModel;
-        viewModel.SegmentMirrorChanged += (_, _) => viewModel.BuildSegmentMirror(SegmentMirror);
-        viewModel.MoraSpans.CollectionChanged += (_, _) => RebuildIntonationUi();
-        viewModel.MoraCells.CollectionChanged += (_, _) => RebuildIntonationUi();
+        InitializeComponent();
+        ViewModel.SegmentMirrorChanged += (_, _) => ViewModel.BuildSegmentMirror(SegmentMirror);
+        ViewModel.MoraSpans.CollectionChanged += (_, _) => RebuildIntonationUi();
+        ViewModel.MoraCells.CollectionChanged += (_, _) => RebuildIntonationUi();
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        Loaded += OnLoaded;
+        RootGrid.KeyDown += OnRootKeyDown;
+        TitleBlock.Text = ViewModel.ProjectTitle;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.EditorText))
+        {
+            if (Editor.Text != ViewModel.EditorText)
+            {
+                _suppressEditorChange = true;
+                Editor.Text = ViewModel.EditorText;
+                _suppressEditorChange = false;
+            }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.ProjectTitle))
+        {
+            if (!ViewModel.IsTitleEditVisible)
+            {
+                TitleBlock.Text = ViewModel.ProjectTitle;
+            }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsTitleEditVisible))
+        {
+            TitleBlock.Visibility = ViewModel.IsTitleEditVisible ? Visibility.Collapsed : Visibility.Visible;
+            TitleBox.Visibility = ViewModel.IsTitleEditVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (ViewModel.IsTitleEditVisible)
+            {
+                TitleBox.Text = ViewModel.TitleEditText;
+                TitleBox.Focus(FocusState.Programmatic);
+                TitleBox.SelectAll();
+            }
+            else
+            {
+                TitleBlock.Text = ViewModel.ProjectTitle;
+            }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.TitleEditText) && ViewModel.IsTitleEditVisible)
+        {
+            if (TitleBox.Text != ViewModel.TitleEditText)
+            {
+                TitleBox.Text = ViewModel.TitleEditText;
+            }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsPlaying))
+        {
+            PlayIcon.Glyph = ViewModel.IsPlaying ? "\uE71A" : "\uE768";
+        }
+        else if (e.PropertyName == nameof(MainViewModel.ToastMessage))
+        {
+            ToastText.Text = ViewModel.ToastMessage;
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsToastVisible))
+        {
+            ToastPanel.Visibility = ViewModel.IsToastVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+        else if (e.PropertyName == nameof(MainViewModel.IsBusy))
+        {
+            BusyRing.IsActive = ViewModel.IsBusy;
+            BusyRing.Visibility = ViewModel.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
-            ViewModel?.DismissSentenceSelectionCommand.Execute(null);
+            ViewModel.DismissSentenceSelectionCommand.Execute(null);
         }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
-        if (ViewModel == null) return;
         _suppressEditorChange = true;
         Editor.Text = ViewModel.EditorText;
         _suppressEditorChange = false;
@@ -58,7 +111,7 @@ public sealed partial class MainView : UserControl
     {
         if (e.ClickedItem is ProjectListItem item)
         {
-            ViewModel?.SelectProjectCommand.Execute(item.Project.Id);
+            ViewModel.SelectProjectCommand.Execute(item.Project.Id);
         }
     }
 
@@ -66,19 +119,19 @@ public sealed partial class MainView : UserControl
     {
         if (sender is Button { Tag: string id })
         {
-            ViewModel?.DeleteProjectCommand.Execute(id);
+            ViewModel.DeleteProjectCommand.Execute(id);
         }
     }
 
     private void OnEditorTextChanging(object sender, TextBoxTextChangingEventArgs e)
     {
-        if (_suppressEditorChange || ViewModel == null) return;
+        if (_suppressEditorChange) return;
         ViewModel.ApplyEditorTextChange(Editor.Text);
     }
 
     private void OnEditorSelectionChanged(object sender, RoutedEventArgs e)
     {
-        ViewModel?.OnEditorSelectionChanged(Editor.SelectionStart);
+        ViewModel.OnEditorSelectionChanged(Editor.SelectionStart);
     }
 
     private void OnEditorScrollChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -87,17 +140,20 @@ public sealed partial class MainView : UserControl
     }
 
     private void OnTitleTapped(object sender, TappedRoutedEventArgs e)
-        => ViewModel?.BeginTitleEditCommand.Execute(null);
+        => ViewModel.BeginTitleEditCommand.Execute(null);
 
     private void OnTitleLostFocus(object sender, RoutedEventArgs e)
-        => ViewModel?.CommitTitleEditCommand.Execute(null);
+    {
+        ViewModel.TitleEditText = TitleBox.Text;
+        ViewModel.CommitTitleEditCommand.Execute(null);
+    }
 
     private void OnTitleKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (ViewModel == null) return;
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             e.Handled = true;
+            ViewModel.TitleEditText = TitleBox.Text;
             ViewModel.CommitTitleEditCommand.Execute(null);
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
@@ -125,7 +181,6 @@ public sealed partial class MainView : UserControl
 
     private void RebuildIntonationUi()
     {
-        if (ViewModel == null) return;
         _moraTextPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 };
         foreach (var span in ViewModel.MoraSpans)
         {

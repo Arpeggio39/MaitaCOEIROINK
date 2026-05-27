@@ -13,7 +13,7 @@ public sealed partial class MainWindow : Window
     {
         ViewModel = new MainViewModel(DispatcherQueue.GetForCurrentThread());
         InitializeComponent();
-        MainView.BindViewModel(ViewModel);
+        Content = new MainView(ViewModel);
         ExtendsContentIntoTitleBar = true;
         SetWindowSize(1280, 800);
     }
