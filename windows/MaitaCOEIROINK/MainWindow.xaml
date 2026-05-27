@@ -126,7 +126,7 @@
                         <FontIcon Glyph="&#xE898;" />
                     </Button>
                     <ComboBox Width="88" ItemsSource="{x:Bind ViewModel.SampleRateOptions, Mode=OneWay}"
-                              SelectedItem="{x:Bind ViewModel.ExportSamplingRate, Mode=TwoWay}" />
+                              SelectedIndex="{x:Bind ViewModel.ExportSamplingRateIndex, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
             </Border>

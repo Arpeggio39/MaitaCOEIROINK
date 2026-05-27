@@ -79,6 +79,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public List<int> SampleRateOptions { get; } = AppConstants.SampleRateOptions.ToList();
     public List<string> ProcessingAlgorithms { get; } = ["td-psola", "world", "resampling"];
 
+    public int ExportSamplingRateIndex
+    {
+        get
+        {
+            var idx = Array.IndexOf(AppConstants.SampleRateOptions, ExportSamplingRate);
+            return idx >= 0 ? idx : Array.IndexOf(AppConstants.SampleRateOptions, AppConstants.ExportSampleRateDefault);
+        }
+        set
+        {
+            if (value < 0 || value >= AppConstants.SampleRateOptions.Length) return;
+            ExportSamplingRate = AppConstants.SampleRateOptions[value];
+        }
+    }
+
     public async Task InitializeAsync()
     {
         _dictionaryEntries = await _storage.LoadDictionaryAsync();
@@ -172,7 +186,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnProcessingAlgorithmChanged(string value) => OnParamChanged();
 
-    partial void OnExportSamplingRateChanged(int value) => _ = PersistAppSettingsAsync();
+    partial void OnExportSamplingRateChanged(int value)
+    {
+        OnPropertyChanged(nameof(ExportSamplingRateIndex));
+        _ = PersistAppSettingsAsync();
+    }
 
     private void OnParamChanged()
     {

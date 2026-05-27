@@ -21,7 +21,7 @@ public sealed partial class DictionaryDialog : ContentDialog
 
     private void OnDeleteRow(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: DictionaryEntry entry })
+        if (sender is Button { DataContext: DictionaryEntry entry })
         {
             Entries.Remove(entry);
             if (Entries.Count == 0) Entries.Add(new DictionaryEntry { Accent = 1 });

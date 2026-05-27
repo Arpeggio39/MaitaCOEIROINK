@@ -26,18 +26,21 @@ jobs:
         run: dotnet restore MaitaCOEIROINK.sln
 
       - name: Build
-        run: dotnet build MaitaCOEIROINK.sln -c Release -p:Platform=x64
+        shell: pwsh
+        run: |
+          dotnet build MaitaCOEIROINK.sln -c Release -p:Platform=x64 --verbosity normal 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Show build diagnostics on failure
         if: failure()
         shell: pwsh
         working-directory: windows
         run: |
-          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Filter "output.json" | ForEach-Object {
+          if (Test-Path build.log) { Get-Content build.log -Tail 300 }
+          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Include *.json,*.xml,*.txt -ErrorAction SilentlyContinue | ForEach-Object {
             Write-Host "=== $($_.FullName) ==="
-            Get-Content $_.FullName
+            Get-Content $_.FullName -ErrorAction SilentlyContinue | Select-Object -First 120
           }
-          Get-ChildItem -Recurse -Path MaitaCOEIROINK/obj -Filter "*.xaml*" | Select-Object -First 20 | ForEach-Object { Write-Host $_.FullName }
 
       - name: Publish
         run: dotnet publish MaitaCOEIROINK/MaitaCOEIROINK.csproj -c Release -p:Platform=x64 -o ../dist/winui
