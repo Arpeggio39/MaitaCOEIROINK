@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
         SetWindowSize(1280, 800);
         RootGrid.Loaded += OnLoaded;
         RootGrid.KeyDown += OnRootKeyDown;
+        TitleBlock.Text = ViewModel.ProjectTitle;
     }
 
     private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
@@ -62,13 +63,33 @@ public sealed partial class MainWindow : Window
                 _suppressEditorChange = false;
             }
         }
+        else if (e.PropertyName == nameof(MainViewModel.ProjectTitle))
+        {
+            if (!ViewModel.IsTitleEditVisible)
+            {
+                TitleBlock.Text = ViewModel.ProjectTitle;
+            }
+        }
         else if (e.PropertyName == nameof(MainViewModel.IsTitleEditVisible))
         {
             TitleBlock.Visibility = ViewModel.IsTitleEditVisible ? Visibility.Collapsed : Visibility.Visible;
+            TitleBox.Visibility = ViewModel.IsTitleEditVisible ? Visibility.Visible : Visibility.Collapsed;
             if (ViewModel.IsTitleEditVisible)
             {
+                TitleBox.Text = ViewModel.TitleEditText;
                 TitleBox.Focus(FocusState.Programmatic);
                 TitleBox.SelectAll();
+            }
+            else
+            {
+                TitleBlock.Text = ViewModel.ProjectTitle;
+            }
+        }
+        else if (e.PropertyName == nameof(MainViewModel.TitleEditText) && ViewModel.IsTitleEditVisible)
+        {
+            if (TitleBox.Text != ViewModel.TitleEditText)
+            {
+                TitleBox.Text = ViewModel.TitleEditText;
             }
         }
         else if (e.PropertyName == nameof(MainViewModel.IsPlaying))
@@ -132,13 +153,18 @@ public sealed partial class MainWindow : Window
 
     private void OnTitleTapped(object sender, TappedRoutedEventArgs e) => ViewModel.BeginTitleEditCommand.Execute(null);
 
-    private void OnTitleLostFocus(object sender, RoutedEventArgs e) => ViewModel.CommitTitleEditCommand.Execute(null);
+    private void OnTitleLostFocus(object sender, RoutedEventArgs e)
+    {
+        ViewModel.TitleEditText = TitleBox.Text;
+        ViewModel.CommitTitleEditCommand.Execute(null);
+    }
 
     private void OnTitleKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             e.Handled = true;
+            ViewModel.TitleEditText = TitleBox.Text;
             ViewModel.CommitTitleEditCommand.Execute(null);
         }
         else if (e.Key == Windows.System.VirtualKey.Escape)
