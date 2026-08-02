@@ -5,8 +5,12 @@
   "main": "src/main/index.js",
   "author": "Arpeggio",
   "license": "MIT",
+  "dependencies": {
+    "iconv-lite": "^0.6.3"
+  },
   "scripts": {
     "start": "electron .",
+    "test": "node --test",
     "dist:mac": "electron-builder --mac",
     "dist:mac:dir": "electron-builder --mac --dir",
     "dist:win": "electron-builder --win --x64",
@@ -71,7 +75,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
   }
 }

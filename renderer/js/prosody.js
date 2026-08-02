@@ -10,6 +10,7 @@ import {
   activeSentenceKey,
   prosodyFetchGeneration,
   prosodyFetchInFlight,
+  prosodyFetchPromises,
   prosodyScheduleTimer,
   setProsodyScheduleTimer,
 } from './state.js';
@@ -17,6 +18,7 @@ import * as appState from './state.js';
 import { showToast } from './utils.js';
 import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
+import { prosodyRequestKey } from './prosody-request-key.mjs';
 
 /**
  * @param {import('./state.js').SegmentMora[][]} detail
@@ -259,12 +261,19 @@ async function fetchEstimateProsodyFromKana(kana) {
  */
 export async function reestimateProsodyFromKana(project, key) {
   const entry = project.sentenceProsodyByKey?.[key];
-  if (!entry?.detail?.length || prosodyFetchInFlight.has(key)) return;
+  const requestKey = prosodyRequestKey(project, key);
+  if (
+    !entry?.detail?.length ||
+    prosodyFetchInFlight.has(requestKey) ||
+    kanaReestimateInFlight.has(requestKey)
+  ) {
+    return;
+  }
 
   const kana = entry.detail.flat().map((m) => m.hira || '').join('').trim();
   if (!kana) return;
 
-  kanaReestimateInFlight.add(key);
+  kanaReestimateInFlight.add(requestKey);
   if (activeSentenceKey === key) notifyIntonationUi();
 
   const hadUserEdits = hasProsodyPitchEdits(entry);
@@ -302,7 +311,7 @@ export async function reestimateProsodyFromKana(project, key) {
       showToast(e instanceof Error ? e.message : String(e));
     }
   } finally {
-    kanaReestimateInFlight.delete(key);
+    kanaReestimateInFlight.delete(requestKey);
     if (activeSentenceKey === key) notifyIntonationUi();
   }
 }
@@ -527,34 +536,42 @@ function notifyIntonationUi() {
 export async function ensureSegmentProsody(project, key, text, opts = {}) {
   const trimmed = text.trim();
   if (!trimmed) return;
+  const requestKey = prosodyRequestKey(project, key);
 
   if (!project.sentenceProsodyByKey) project.sentenceProsodyByKey = {};
   const existing = project.sentenceProsodyByKey[key];
   if (opts.force && existing) delete project.sentenceProsodyByKey[key];
   const cached = project.sentenceProsodyByKey[key];
   if (!opts.force && cached && cached.text === trimmed && cached.detail?.length) return;
-  if (!opts.force && prosodyFetchInFlight.has(key)) return;
-
-  if (opts.force) {
-    prosodyFetchGeneration.set(key, (prosodyFetchGeneration.get(key) || 0) + 1);
-    prosodyFetchInFlight.delete(key);
+  if (!opts.force && prosodyFetchInFlight.has(requestKey)) {
+    return prosodyFetchPromises.get(requestKey);
   }
 
-  const gen = (prosodyFetchGeneration.get(key) || 0) + 1;
-  prosodyFetchGeneration.set(key, gen);
+  if (opts.force) {
+    prosodyFetchGeneration.set(requestKey, (prosodyFetchGeneration.get(requestKey) || 0) + 1);
+    prosodyFetchInFlight.delete(requestKey);
+  }
+
+  const gen = (prosodyFetchGeneration.get(requestKey) || 0) + 1;
+  prosodyFetchGeneration.set(requestKey, gen);
+  let resolveCompletion = () => {};
+  const completion = new Promise((resolve) => {
+    resolveCompletion = resolve;
+  });
+  prosodyFetchPromises.set(requestKey, completion);
 
   project.sentenceProsodyByKey[key] = {
     text: trimmed,
     detail: !opts.force && cached?.text === trimmed ? cloneProsodyDetail(cached.detail) : [],
   };
-  prosodyFetchInFlight.add(key);
+  prosodyFetchInFlight.add(requestKey);
   notifyIntonationUi();
 
   try {
     const detail = await fetchEstimateProsody(trimmed);
     applyDefaultMoraPitches(detail);
 
-    if (prosodyFetchGeneration.get(key) !== gen) return;
+    if (prosodyFetchGeneration.get(requestKey) !== gen) return;
     project.sentenceProsodyByKey[key] = { text: trimmed, detail };
     notifyIntonationUi();
 
@@ -562,23 +579,27 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
       const speedScale = getSentenceParams(project, key).speedScale;
       await fetchPredictF0ForProsody(trimmed, detail, project.sentenceProsodyByKey[key], speedScale);
     } catch (e) {
-      if (prosodyFetchGeneration.get(key) === gen) {
+      if (prosodyFetchGeneration.get(requestKey) === gen) {
         showToast(e instanceof Error ? e.message : String(e));
       }
     }
 
-    if (prosodyFetchGeneration.get(key) !== gen) return;
+    if (prosodyFetchGeneration.get(requestKey) !== gen) return;
     schedulePersist();
     notifyIntonationUi();
   } catch (e) {
-    if (prosodyFetchGeneration.get(key) !== gen) return;
+    if (prosodyFetchGeneration.get(requestKey) !== gen) return;
     delete project.sentenceProsodyByKey[key];
     showToast(e instanceof Error ? e.message : String(e));
   } finally {
-    if (prosodyFetchGeneration.get(key) === gen) {
-      prosodyFetchInFlight.delete(key);
+    if (prosodyFetchGeneration.get(requestKey) === gen) {
+      prosodyFetchInFlight.delete(requestKey);
       notifyIntonationUi();
     }
+    if (prosodyFetchPromises.get(requestKey) === completion) {
+      prosodyFetchPromises.delete(requestKey);
+    }
+    resolveCompletion();
   }
 }
 

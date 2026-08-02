@@ -22,14 +22,28 @@ import { schedulePersist } from './persist.js';
 import { ensureSegmentProsody } from './prosody.js';
 import { sentenceRangesFromText } from './segments.js';
 import { activeProject } from './state.js';
-import { exportActiveSentence, exportAudio, resizeWaveformCanvas, togglePlayback } from './audio.js';
+import {
+  closeExportChoiceModal,
+  exportAllAudio,
+  exportSelectedAudio,
+  openExportChoiceModal,
+  resizeWaveformCanvas,
+  scheduleKanjishikunExport,
+  togglePlayback,
+} from './audio.js';
 import {
   appendDictionaryRow,
   closeDictionaryModal,
   openDictionaryModal,
   saveDictionaryFromModal,
 } from './dictionary.js';
-import { persistAppSettings } from './settings.js';
+import {
+  chooseExportDirectory,
+  clearExportDirectory,
+  closeExportSettingsModal,
+  openExportSettingsModal,
+  persistAppSettings,
+} from './settings.js';
 
 export function bindEvents() {
   els.projectTitle.addEventListener('click', () => startProjectTitleEdit());
@@ -45,6 +59,32 @@ export function bindEvents() {
   });
 
   els.btnNewProject.addEventListener('click', () => newProject());
+  els.btnExportSettings.addEventListener('click', () => openExportSettingsModal());
+  els.btnExportSettingsDismiss.addEventListener('click', () => closeExportSettingsModal());
+  els.btnExportSettingsClose.addEventListener('click', () => closeExportSettingsModal());
+  els.btnExportDirSelect.addEventListener('click', () => void chooseExportDirectory());
+  els.btnExportDirClear.addEventListener('click', () => void clearExportDirectory());
+  els.exportDirectoryEnabled.addEventListener('change', () => {
+    if (els.exportDirectoryEnabled.checked && !els.exportDirectoryPath.classList.contains('has-path')) {
+      void chooseExportDirectory().then(() => {
+        if (!els.exportDirectoryPath.classList.contains('has-path')) {
+          els.exportDirectoryEnabled.checked = false;
+        }
+      });
+      return;
+    }
+    void persistAppSettings().then(() => scheduleKanjishikunExport());
+  });
+  els.preventExportOverwrite.addEventListener('change', () => {
+    void persistAppSettings().then(() => scheduleKanjishikunExport());
+  });
+  els.exportTextFileEnabled.addEventListener('change', () => {
+    els.exportTextEncodingGroup.disabled = !els.exportTextFileEnabled.checked;
+    void persistAppSettings().then(() => scheduleKanjishikunExport());
+  });
+  els.exportTextEncodingGroup.addEventListener('change', () => {
+    void persistAppSettings().then(() => scheduleKanjishikunExport());
+  });
   els.btnUndo.addEventListener('click', () => {
     els.editor.focus();
     void bridge.nativeUndo();
@@ -54,12 +94,16 @@ export function bindEvents() {
     void bridge.nativeRedo();
   });
   els.btnPlay.addEventListener('click', () => void togglePlayback());
-  els.btnExport.addEventListener('click', () => void exportAudio());
+  els.btnExport.addEventListener('click', () => openExportChoiceModal());
+  els.btnExportChoiceDismiss.addEventListener('click', () => closeExportChoiceModal());
+  els.btnExportSelected.addEventListener('click', () => void exportSelectedAudio());
+  els.btnExportAll.addEventListener('click', () => void exportAllAudio());
 
   els.editor.addEventListener('input', () => {
     syncActiveProjectFromUi();
     bumpActiveUpdatedAt();
     schedulePersist();
+    scheduleKanjishikunExport();
   });
 
   els.editor.addEventListener('scroll', () => syncEditorOverlayScroll());
@@ -80,19 +124,25 @@ export function bindEvents() {
       refreshValueLabels();
       saveActiveSegmentParams();
       renderSegmentOverlay();
+      scheduleKanjishikunExport();
     });
   }
 
-  els.exportSamplingRate.addEventListener('change', () => void persistAppSettings());
+  els.exportSamplingRate.addEventListener('change', () => {
+    void persistAppSettings().then(() => scheduleKanjishikunExport());
+  });
 
   els.processingAlgorithm.addEventListener('change', () => {
     if (activeSentenceKey == null) return;
     saveActiveSegmentParams();
     renderSegmentOverlay();
+    scheduleKanjishikunExport();
   });
 
-  els.btnSegmentParamReset.addEventListener('click', () => resetActiveSegmentParams());
-  els.btnSegmentExport.addEventListener('click', () => void exportActiveSentence());
+  els.btnSegmentParamReset.addEventListener('click', () => {
+    resetActiveSegmentParams();
+    scheduleKanjishikunExport();
+  });
 
   let intonationScrollSyncing = false;
   els.intonationTextStrip.addEventListener('scroll', () => {
@@ -117,10 +167,15 @@ export function bindEvents() {
     els.btnRegenerateProsody.disabled = true;
     void ensureSegmentProsody(p, activeSentenceKey, range.text, { force: true }).finally(() => {
       els.btnRegenerateProsody.disabled = activeSentenceKey == null;
+      scheduleKanjishikunExport();
     });
   });
 
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !els.exportChoiceModal.classList.contains('hidden')) {
+      closeExportChoiceModal();
+      return;
+    }
     if (ev.key === 'Escape' && activeSentenceKey != null) {
       clearSentenceSelection();
     }
@@ -138,5 +193,8 @@ export function bindEvents() {
   els.btnDictApply.addEventListener('click', () => void saveDictionaryFromModal());
   els.dictionaryModal.addEventListener('click', (ev) => {
     if (ev.target === els.dictionaryModal) closeDictionaryModal();
+  });
+  els.exportChoiceModal.addEventListener('click', (ev) => {
+    if (ev.target === els.exportChoiceModal) closeExportChoiceModal();
   });
 }

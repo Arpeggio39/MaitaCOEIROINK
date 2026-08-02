@@ -18,6 +18,7 @@
       </header>
       <div class="sidebar-toolbar">
         <button type="button" id="btnNewProject" class="btn btn-ghost">＋ 新規プロジェクト</button>
+        <button type="button" id="btnExportSettings" class="btn btn-ghost btn-ghost-muted">書き出し設定</button>
         <button type="button" id="btnDictionary" class="btn btn-ghost btn-ghost-muted">読み上げ辞書</button>
       </div>
       <ul id="projectList" class="project-list" role="listbox" aria-label="プロジェクト一覧"></ul>
@@ -99,7 +100,6 @@
         </section>
 
         <aside id="paramPane" class="param-pane is-inactive" aria-label="区切りの音声パラメータ">
-            <button type="button" id="btnSegmentExport" class="btn btn-sentence-export">この文章を書き出し</button>
             <div class="field">
               <div class="field-row">
                 <label for="speedScale">話速</label>
@@ -191,6 +191,69 @@
           <button type="button" id="btnDictClose" class="btn btn-modal-secondary">閉じる</button>
           <button type="button" id="btnDictApply" class="btn btn-modal-primary">保存</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportSettingsModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="exportSettingsModalTitle">
+    <div class="modal-panel">
+      <header class="modal-head">
+        <h2 id="exportSettingsModalTitle" class="modal-title">書き出し設定</h2>
+        <button type="button" id="btnExportSettingsDismiss" class="btn-modal-close" aria-label="閉じる">×</button>
+      </header>
+      <div class="settings-body">
+        <label class="check-row check-row-first">
+          <input type="checkbox" id="exportDirectoryEnabled" />
+          <span>書き出しフォルダーを固定する</span>
+        </label>
+        <div class="field">
+          <label for="exportDirectoryPath">書き出しフォルダー</label>
+          <div class="export-dir-row">
+            <input type="text" id="exportDirectoryPath" class="input export-dir-path" value="未設定" readonly spellcheck="false" />
+            <button type="button" id="btnExportDirSelect" class="btn btn-modal-secondary">選択</button>
+            <button type="button" id="btnExportDirClear" class="btn btn-modal-secondary">解除</button>
+          </div>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="preventExportOverwrite" />
+          <span>同名ファイルの上書きを防止する</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="exportTextFileEnabled" />
+          <span>txtファイルを音声保存と同時に書き出す</span>
+        </label>
+        <fieldset id="exportTextEncodingGroup" class="encoding-fieldset">
+          <legend>テキストの文字コード</legend>
+          <label class="radio-row">
+            <input type="radio" name="exportTextEncoding" value="utf8" />
+            <span>UTF-8</span>
+          </label>
+          <label class="radio-row">
+            <input type="radio" name="exportTextEncoding" value="shift_jis" />
+            <span>Shift_JIS</span>
+          </label>
+        </fieldset>
+        <p class="settings-note">固定フォルダーとtxt同時書き出しを有効にすると、編集内容を区切りごとに自動で書き出します。</p>
+      </div>
+      <div class="modal-actions-between">
+        <span></span>
+        <div class="modal-actions">
+          <button type="button" id="btnExportSettingsClose" class="btn btn-modal-primary">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportChoiceModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="exportChoiceModalTitle">
+    <div class="modal-panel modal-panel-compact">
+      <header class="modal-head">
+        <h2 id="exportChoiceModalTitle" class="modal-title">音声を書き出す</h2>
+        <button type="button" id="btnExportChoiceDismiss" class="btn-modal-close" aria-label="閉じる">×</button>
+      </header>
+      <div class="export-choice-body">
+        <button type="button" id="btnExportSelected" class="btn export-choice-button">選択中の文章を書き出す</button>
+        <button type="button" id="btnExportAll" class="btn export-choice-button">全文章を区切りごとに書き出す</button>
+        <p class="settings-note">手動書き出しではWAVのみを保存します。</p>
       </div>
     </div>
   </div>
