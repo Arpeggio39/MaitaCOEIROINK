@@ -1,93 +1,13 @@
-import { PARAM_DEFAULTS, SEGMENT_PUNCT_RE } from './constants.js';
+import { PARAM_DEFAULTS } from './constants.js';
 import { cloneParams } from './params.js';
+import {
+  findRangeAtCursor,
+  isSegmentPunctuation,
+  sentenceRangesFromText,
+  sentencesFromText,
+} from './segment-parser.mjs';
 
-/** @param {string} ch */
-export function isSegmentPunctuation(ch) {
-  return SEGMENT_PUNCT_RE.test(ch);
-}
-
-/** @param {string} ch */
-function isSegmentWhitespace(ch) {
-  return ch === ' ' || ch === '\t' || ch === '\u3000';
-}
-
-/** @param {string} ch */
-function isSegmentNewline(ch) {
-  return ch === '\n' || ch === '\r';
-}
-
-/**
- * @param {string} text
- * @returns {import('./state.js').SentenceRange[]}
- */
-export function sentenceRangesFromText(text) {
-  /** @type {import('./state.js').SentenceRange[]} */
-  const ranges = [];
-  let buf = '';
-  let segStart = 0;
-  let index = 0;
-
-  /** @param {number} breakEnd */
-  function flushSegment(breakEnd) {
-    const trimmed = buf.trim();
-    if (!trimmed) {
-      buf = '';
-      segStart = breakEnd;
-      return;
-    }
-    const lead = buf.length - buf.trimStart().length;
-    const start = segStart + lead;
-    const end = start + trimmed.length;
-    ranges.push({
-      key: `s${start}`,
-      start,
-      end,
-      text: text.slice(start, end),
-      index: index++,
-    });
-    buf = '';
-    segStart = breakEnd;
-  }
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (isSegmentPunctuation(ch)) {
-      buf += ch;
-      flushSegment(i + 1);
-      continue;
-    }
-    if (isSegmentWhitespace(ch) || isSegmentNewline(ch)) {
-      flushSegment(i + 1);
-      while (i + 1 < text.length && (isSegmentWhitespace(text[i + 1]) || isSegmentNewline(text[i + 1]))) {
-        i += 1;
-      }
-      segStart = i + 1;
-      continue;
-    }
-    buf += ch;
-  }
-
-  flushSegment(text.length);
-  return ranges;
-}
-
-/**
- * @param {number} pos
- * @param {import('./state.js').SentenceRange[]} ranges
- */
-export function findRangeAtCursor(pos, ranges) {
-  for (const r of ranges) {
-    if (pos >= r.start && pos < r.end) return r;
-  }
-  return null;
-}
-
-/**
- * @param {string} text
- */
-export function sentencesFromText(text) {
-  return sentenceRangesFromText(text).map((r) => r.text);
-}
+export { findRangeAtCursor, isSegmentPunctuation, sentenceRangesFromText, sentencesFromText };
 
 /**
  * @param {import('./state.js').Project} project

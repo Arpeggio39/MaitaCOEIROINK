@@ -8,6 +8,7 @@ import {
   activeSentenceKey,
   lastSentenceRanges,
   projects,
+  requestKanjishikunExport,
   setActiveId,
   setActiveSentenceKey,
   setProjects,
@@ -57,6 +58,7 @@ export function commitProjectTitleEdit() {
   renderProjectList();
   bumpActiveUpdatedAt();
   schedulePersist();
+  requestKanjishikunExport();
 }
 
 export function cancelProjectTitleEdit() {
@@ -94,6 +96,7 @@ export function migrateProjects(list) {
   const now = new Date().toISOString();
   for (const raw of list) {
     const p = /** @type {import('./state.js').Project} */ (raw);
+    if (!p.id) p.id = crypto.randomUUID();
     if (!p.updatedAt) p.updatedAt = now;
     if (p.params) delete p.params.outputSamplingRate;
     if (p.sentenceParamsByKey) {
@@ -196,6 +199,7 @@ export function selectProject(id) {
   renderProjectList();
   editorHooks?.renderSegmentOverlay();
   schedulePersist();
+  requestKanjishikunExport();
 }
 
 export function newProject() {

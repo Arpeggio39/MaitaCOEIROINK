@@ -10,6 +10,15 @@ function registerDialogIpc() {
     return filePath;
   });
 
+  ipcMain.handle('dialog:selectExportDirectory', async (_e, defaultPath) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      defaultPath: defaultPath || undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (canceled || !filePaths[0]) return null;
+    return filePaths[0];
+  });
+
   ipcMain.handle('dialog:confirmDeleteProject', async (event) => {
     const parent = BrowserWindow.fromWebContents(event.sender);
     const { response } = await dialog.showMessageBox(parent ?? BrowserWindow.getFocusedWindow(), {

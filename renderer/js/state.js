@@ -23,12 +23,24 @@ export let prosodyScheduleTimer = null;
 export const prosodyFetchGeneration = new Map();
 /** @type {Set<string>} */
 export const prosodyFetchInFlight = new Set();
+/** @type {Map<string, Promise<void>>} */
+export const prosodyFetchPromises = new Map();
 
 /** @type {{ word: string, yomi: string, accent: number }[]} */
 export let dictionaryEntries = [];
 
 /** @type {number} */
 export let exportSamplingRate = EXPORT_SAMPLE_RATE_DEFAULT;
+/** @type {string} */
+export let exportDirectory = '';
+/** @type {boolean} */
+export let exportDirectoryEnabled = false;
+/** @type {boolean} */
+export let preventExportOverwrite = false;
+/** @type {boolean} */
+export let exportTextFileEnabled = false;
+/** @type {'utf8' | 'shift_jis'} */
+export let exportTextEncoding = 'utf8';
 
 /** 琵音マイタの API styleId */
 export let maitaStyleId = 0;
@@ -45,6 +57,8 @@ export let waveformPhases = [];
 /** UI 更新コールバック（循環 import 回避） */
 /** @type {(() => void) | null} */
 export let refreshIntonationUi = null;
+/** @type {(() => void) | null} */
+export let kanjishikunExportScheduler = null;
 
 export function activeProject() {
   return projects.find((p) => p.id === activeId) || null;
@@ -78,6 +92,26 @@ export function setExportSamplingRate(rate) {
   exportSamplingRate = rate;
 }
 
+export function setExportDirectory(directory) {
+  exportDirectory = String(directory || '');
+}
+
+export function setExportDirectoryEnabled(enabled) {
+  exportDirectoryEnabled = Boolean(enabled);
+}
+
+export function setPreventExportOverwrite(enabled) {
+  preventExportOverwrite = Boolean(enabled);
+}
+
+export function setExportTextFileEnabled(enabled) {
+  exportTextFileEnabled = Boolean(enabled);
+}
+
+export function setExportTextEncoding(encoding) {
+  exportTextEncoding = encoding === 'shift_jis' ? 'shift_jis' : 'utf8';
+}
+
 export function setMaitaStyleId(styleId) {
   maitaStyleId = styleId;
 }
@@ -100,4 +134,12 @@ export function setWaveformPhases(phases) {
 
 export function setRefreshIntonationUi(fn) {
   refreshIntonationUi = fn;
+}
+
+export function setKanjishikunExportScheduler(fn) {
+  kanjishikunExportScheduler = fn;
+}
+
+export function requestKanjishikunExport() {
+  kanjishikunExportScheduler?.();
 }
