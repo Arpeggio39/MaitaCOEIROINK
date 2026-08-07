@@ -1,0 +1,55 @@
+name: Release Electron (Windows)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync version from tag
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            '${{ inputs.tag }}'
+          } else {
+            $env:GITHUB_REF -replace '^refs/tags/', ''
+          }
+          if ($tag -notmatch '^v') {
+            Write-Error "Tag must start with 'v' (e.g. v0.1.0). Got: $tag"
+            exit 1
+          }
+          $version = $tag.Substring(1)
+          npm version $version --no-git-tag-version --allow-same-version
+          Write-Host "Building version $version"
+
+      - name: Build and publish to GitHub Releases
+        run: npx electron-builder --win --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

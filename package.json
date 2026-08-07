@@ -6,6 +6,7 @@
   "author": "Arpeggio",
   "license": "MIT",
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "iconv-lite": "^0.6.3"
   },
   "scripts": {
@@ -14,6 +15,7 @@
     "dist:mac": "electron-builder --mac",
     "dist:mac:dir": "electron-builder --mac --dir",
     "dist:win": "electron-builder --win --x64",
+    "dist:win:publish": "electron-builder --win --x64 --publish always",
     "dist:win:dir": "electron-builder --win --x64 --dir",
     "dist:winui": "dotnet build windows/MaitaCOEIROINK.sln -c Release -p:Platform=x64"
   },
@@ -55,6 +57,11 @@
         }
       ],
       "executableName": "MaitaCOEIROINK"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Arpeggio39",
+      "repo": "MaitaCOEIROINK"
     },
     "nsis": {
       "oneClick": false,
