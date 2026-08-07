@@ -16,8 +16,7 @@
     "dist:mac:dir": "electron-builder --mac --dir",
     "dist:win": "electron-builder --win --x64",
     "dist:win:publish": "electron-builder --win --x64 --publish always",
-    "dist:win:dir": "electron-builder --win --x64 --dir",
-    "dist:winui": "dotnet build windows/MaitaCOEIROINK.sln -c Release -p:Platform=x64"
+    "dist:win:dir": "electron-builder --win --x64 --dir"
   },
   "build": {
     "appId": "jp.arpeggio.maita-coeiroink",
@@ -61,7 +60,8 @@
     "publish": {
       "provider": "github",
       "owner": "Arpeggio39",
-      "repo": "MaitaCOEIROINK"
+      "repo": "MaitaCOEIROINK",
+      "releaseType": "release"
     },
     "nsis": {
       "oneClick": false,
