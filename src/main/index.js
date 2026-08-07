@@ -2,6 +2,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 const { installAppMenu } = require('./menu');
 const { registerAllIpcHandlers } = require('./ipc');
+const { initUpdater } = require('./updater');
 
 registerAllIpcHandlers();
 
@@ -24,6 +25,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   installAppMenu();
+  initUpdater({ checkOnStartup: true });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,4 +1,5 @@
 const { app, Menu } = require('electron');
+const { checkForUpdatesManually } = require('./updater');
 
 function installAppMenu() {
   const isMac = process.platform === 'darwin';
@@ -20,6 +21,22 @@ function installAppMenu() {
       ],
     });
   }
+  template.push({
+    label: 'ヘルプ',
+    submenu: [
+      {
+        label: '更新を確認',
+        click: () => {
+          checkForUpdatesManually();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: `バージョン ${app.getVersion()}`,
+        enabled: false,
+      },
+    ],
+  });
   template.push({
     label: '編集',
     submenu: [

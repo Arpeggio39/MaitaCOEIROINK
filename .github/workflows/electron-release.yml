@@ -1,0 +1,83 @@
+name: Release Electron (Windows)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '既存 Release があっても再ビルドする'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Read version from package.json
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Release version: v$version"
+
+      - name: Skip if release already exists
+        id: check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.force }}' -eq 'true') {
+            "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Force rebuild requested."
+            exit 0
+          }
+          $tag = "v${{ steps.version.outputs.version }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Release $tag already exists. Skipping."
+          } else {
+            "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Release $tag not found. Will build."
+          }
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Build and publish to GitHub Releases
+        if: steps.check.outputs.skip != 'true'
+        run: npx electron-builder --win --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create git tag
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          $tag = "v${{ steps.version.outputs.version }}"
+          git tag -a $tag -m "Release $tag" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Tag $tag already exists locally; pushing existing tag."
+          }
+          git push origin $tag
