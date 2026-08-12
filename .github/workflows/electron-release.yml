@@ -92,6 +92,22 @@ jobs:
           }
           exit 0
 
+      - name: Ensure release tag exists
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          git fetch --tags --force
+          git show-ref --tags --verify --quiet "refs/tags/$tag"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Tag $tag already exists."
+            exit 0
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a $tag -m "Release $tag"
+          git push origin $tag
+
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'
         run: npm ci
