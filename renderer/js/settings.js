@@ -87,7 +87,6 @@ export async function chooseExportDirectory() {
     appState.setExportDirectoryEnabled(true);
     applyExportSettingsToControls();
     await persistAppSettings();
-    appState.requestKanjishikunExport();
   } catch (e) {
     showToast(e instanceof Error ? e.message : String(e));
   }
@@ -98,5 +97,4 @@ export async function clearExportDirectory() {
   appState.setExportDirectoryEnabled(false);
   applyExportSettingsToControls();
   await persistAppSettings();
-  appState.requestKanjishikunExport();
 }

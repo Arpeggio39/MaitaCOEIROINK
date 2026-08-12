@@ -57,8 +57,6 @@ export let waveformPhases = [];
 /** UI 更新コールバック（循環 import 回避） */
 /** @type {(() => void) | null} */
 export let refreshIntonationUi = null;
-/** @type {(() => void) | null} */
-export let kanjishikunExportScheduler = null;
 
 export function activeProject() {
   return projects.find((p) => p.id === activeId) || null;
@@ -134,12 +132,4 @@ export function setWaveformPhases(phases) {
 
 export function setRefreshIntonationUi(fn) {
   refreshIntonationUi = fn;
-}
-
-export function setKanjishikunExportScheduler(fn) {
-  kanjishikunExportScheduler = fn;
-}
-
-export function requestKanjishikunExport() {
-  kanjishikunExportScheduler?.();
 }

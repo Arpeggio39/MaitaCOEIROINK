@@ -28,7 +28,6 @@ import {
   exportSelectedAudio,
   openExportChoiceModal,
   resizeWaveformCanvas,
-  scheduleKanjishikunExport,
   togglePlayback,
 } from './audio.js';
 import {
@@ -73,17 +72,17 @@ export function bindEvents() {
       });
       return;
     }
-    void persistAppSettings().then(() => scheduleKanjishikunExport());
+    void persistAppSettings();
   });
   els.preventExportOverwrite.addEventListener('change', () => {
-    void persistAppSettings().then(() => scheduleKanjishikunExport());
+    void persistAppSettings();
   });
   els.exportTextFileEnabled.addEventListener('change', () => {
     els.exportTextEncodingGroup.disabled = !els.exportTextFileEnabled.checked;
-    void persistAppSettings().then(() => scheduleKanjishikunExport());
+    void persistAppSettings();
   });
   els.exportTextEncodingGroup.addEventListener('change', () => {
-    void persistAppSettings().then(() => scheduleKanjishikunExport());
+    void persistAppSettings();
   });
   els.btnUndo.addEventListener('click', () => {
     els.editor.focus();
@@ -103,7 +102,6 @@ export function bindEvents() {
     syncActiveProjectFromUi();
     bumpActiveUpdatedAt();
     schedulePersist();
-    scheduleKanjishikunExport();
   });
 
   els.editor.addEventListener('scroll', () => syncEditorOverlayScroll());
@@ -124,25 +122,18 @@ export function bindEvents() {
       refreshValueLabels();
       saveActiveSegmentParams();
       renderSegmentOverlay();
-      scheduleKanjishikunExport();
     });
   }
 
-  els.exportSamplingRate.addEventListener('change', () => {
-    void persistAppSettings().then(() => scheduleKanjishikunExport());
-  });
+  els.exportSamplingRate.addEventListener('change', () => void persistAppSettings());
 
   els.processingAlgorithm.addEventListener('change', () => {
     if (activeSentenceKey == null) return;
     saveActiveSegmentParams();
     renderSegmentOverlay();
-    scheduleKanjishikunExport();
   });
 
-  els.btnSegmentParamReset.addEventListener('click', () => {
-    resetActiveSegmentParams();
-    scheduleKanjishikunExport();
-  });
+  els.btnSegmentParamReset.addEventListener('click', () => resetActiveSegmentParams());
 
   let intonationScrollSyncing = false;
   els.intonationTextStrip.addEventListener('scroll', () => {
@@ -167,7 +158,6 @@ export function bindEvents() {
     els.btnRegenerateProsody.disabled = true;
     void ensureSegmentProsody(p, activeSentenceKey, range.text, { force: true }).finally(() => {
       els.btnRegenerateProsody.disabled = activeSentenceKey == null;
-      scheduleKanjishikunExport();
     });
   });
 

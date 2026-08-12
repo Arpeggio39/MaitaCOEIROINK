@@ -34,11 +34,3 @@ export function normalizeExportSettings(blob) {
     exportTextEncoding: blob?.exportTextEncoding === 'shift_jis' ? 'shift_jis' : 'utf8',
   };
 }
-
-export function isKanjishikunConfigured(settings) {
-  return Boolean(
-    settings?.exportDirectoryEnabled &&
-      settings?.exportDirectory &&
-      settings?.exportTextFileEnabled,
-  );
-}

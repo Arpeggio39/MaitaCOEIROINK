@@ -8,7 +8,6 @@ import {
   activeSentenceKey,
   lastSentenceRanges,
   projects,
-  requestKanjishikunExport,
   setActiveId,
   setActiveSentenceKey,
   setProjects,
@@ -58,7 +57,6 @@ export function commitProjectTitleEdit() {
   renderProjectList();
   bumpActiveUpdatedAt();
   schedulePersist();
-  requestKanjishikunExport();
 }
 
 export function cancelProjectTitleEdit() {
@@ -199,7 +197,6 @@ export function selectProject(id) {
   renderProjectList();
   editorHooks?.renderSegmentOverlay();
   schedulePersist();
-  requestKanjishikunExport();
 }
 
 export function newProject() {

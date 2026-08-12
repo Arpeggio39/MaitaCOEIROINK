@@ -30,7 +30,6 @@ import {
   activeProject,
   activeSentenceKey,
   lastSentenceRanges,
-  requestKanjishikunExport,
   setActiveSentenceKey,
   setRefreshIntonationUi,
 } from './state.js';
@@ -211,7 +210,6 @@ export function renderIntonationUI() {
       span.mora.hira = next;
       bumpActiveUpdatedAt();
       scheduleProsodyKanaReestimate(p, key);
-      requestKanjishikunExport();
     });
 
     els.intonationTextStrip.appendChild(input);
@@ -254,7 +252,6 @@ export function renderIntonationUI() {
       }
       bumpActiveUpdatedAt();
       schedulePersist();
-      requestKanjishikunExport();
     });
 
     sliderWrap.appendChild(slider);
