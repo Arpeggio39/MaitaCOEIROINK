@@ -108,6 +108,21 @@ jobs:
           git tag -a $tag -m "Release $tag"
           git push origin $tag
 
+      - name: Ensure GitHub Release exists
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $tag = "v$version"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists."
+            exit 0
+          }
+          gh release create $tag --title $version --verify-tag --latest
+
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'
         run: npm ci
