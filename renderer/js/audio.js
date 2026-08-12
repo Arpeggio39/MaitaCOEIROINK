@@ -23,17 +23,10 @@ import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
 import { getExportSamplingRate, persistAppSettings } from './settings.js';
 import {
-  isKanjishikunConfigured,
   segmentExportFilename,
   selectedExportFilename,
   textFilePathForWav,
 } from './export-utils.mjs';
-
-const KANJISHIKUN_EXPORT_DELAY_MS = 1200;
-let kanjishikunExportTimer = null;
-let kanjishikunExportGeneration = 0;
-let kanjishikunExportInFlight = false;
-let kanjishikunExportQueued = false;
 
 /**
  * @param {ArrayBuffer} ab
@@ -364,12 +357,14 @@ export async function exportAllAudio() {
     return;
   }
 
-  const directory = await bridge.selectExportDirectory();
-  if (!directory) return;
-
   els.btnExportAll.disabled = true;
   try {
     await persistAppSettings();
+    const directory = appState.exportDirectoryEnabled && appState.exportDirectory
+      ? appState.exportDirectory
+      : await bridge.selectExportDirectory();
+    if (!directory) return;
+
     const p = activeProject();
     if (!p) return;
     saveActiveSegmentParams();
@@ -378,12 +373,16 @@ export async function exportAllAudio() {
       const filePath = await bridge.resolveExportFilePath(
         directory,
         segmentExportFilename(p.title, range),
-        { unique: appState.preventExportOverwrite },
+        {
+          unique: appState.preventExportOverwrite,
+          companionText: appState.exportTextFileEnabled,
+        },
       );
-      await bridge.writeWavFile(filePath, buf);
+      await writeExportFiles(filePath, buf, range.text);
     }
     closeExportChoiceModal();
-    showToast(`${ranges.length}件のWAVを書き出しました: ${directory}`);
+    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV';
+    showToast(`${ranges.length}件の${artifactLabel}を書き出しました: ${directory}`);
   } catch (e) {
     showToast(e instanceof Error ? e.message : String(e));
   } finally {
@@ -421,11 +420,18 @@ export async function exportSelectedAudio() {
   try {
     await persistAppSettings();
     const buf = await synthesizeRange(p, range);
-    const filePath = await bridge.saveWavDialog(selectedExportFilename(p.title, range));
+    const defaultName = selectedExportFilename(p.title, range);
+    const filePath = appState.exportDirectoryEnabled && appState.exportDirectory
+      ? await bridge.resolveExportFilePath(appState.exportDirectory, defaultName, {
+          unique: appState.preventExportOverwrite,
+          companionText: appState.exportTextFileEnabled,
+        })
+      : await bridge.saveWavDialog(defaultName);
     if (!filePath) return;
-    await bridge.writeWavFile(filePath, buf);
+    await writeExportFiles(filePath, buf, range.text);
     closeExportChoiceModal();
-    showToast(`書き出しました: ${filePath}`);
+    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : '';
+    showToast(`${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
     showToast(e instanceof Error ? e.message : String(e));
   } finally {
@@ -433,78 +439,14 @@ export async function exportSelectedAudio() {
   }
 }
 
-function currentKanjishikunSettings() {
-  return {
-    exportDirectory: appState.exportDirectory,
-    exportDirectoryEnabled: appState.exportDirectoryEnabled,
-    exportTextFileEnabled: appState.exportTextFileEnabled,
-  };
-}
-
-export function scheduleKanjishikunExport() {
-  kanjishikunExportGeneration += 1;
-  clearTimeout(kanjishikunExportTimer);
-  if (!isKanjishikunConfigured(currentKanjishikunSettings())) return;
-  const generation = kanjishikunExportGeneration;
-  kanjishikunExportTimer = setTimeout(() => {
-    void runKanjishikunExport(generation);
-  }, KANJISHIKUN_EXPORT_DELAY_MS);
-}
-
-async function runKanjishikunExport(generation) {
-  if (
-    generation !== kanjishikunExportGeneration ||
-    !isKanjishikunConfigured(currentKanjishikunSettings())
-  ) {
-    return;
+async function writeExportFiles(filePath, buffer, text) {
+  // WAVをかんしくんが検知する時点で同名txtが読めるよう、txtを先に書く。
+  if (appState.exportTextFileEnabled) {
+    await bridge.writeTextFile(
+      textFilePathForWav(filePath),
+      text.trim(),
+      appState.exportTextEncoding,
+    );
   }
-  if (kanjishikunExportInFlight) {
-    kanjishikunExportQueued = true;
-    return;
-  }
-
-  kanjishikunExportInFlight = true;
-  try {
-    const project = activeProject();
-    const ranges = sentenceRangesFromText(els.editor.value);
-    if (!project || ranges.length === 0) return;
-
-    const outputs = [];
-    saveActiveSegmentParams();
-    for (const range of ranges) {
-      const buffer = await synthesizeRange(project, range);
-      if (generation !== kanjishikunExportGeneration) return;
-      outputs.push({ range, buffer });
-    }
-
-    for (const { range, buffer } of outputs) {
-      if (generation !== kanjishikunExportGeneration) return;
-      const filePath = await bridge.resolveExportFilePath(
-        appState.exportDirectory,
-        segmentExportFilename(project.title, range),
-        {
-          unique: appState.preventExportOverwrite,
-          companionText: true,
-        },
-      );
-      await bridge.writeTextFile(
-        textFilePathForWav(filePath),
-        range.text.trim(),
-        appState.exportTextEncoding,
-      );
-      await bridge.writeWavFile(filePath, buffer);
-    }
-  } catch (e) {
-    if (generation === kanjishikunExportGeneration) {
-      showToast(`かんしくん自動書き出しに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  } finally {
-    kanjishikunExportInFlight = false;
-    if (kanjishikunExportQueued) {
-      kanjishikunExportQueued = false;
-      scheduleKanjishikunExport();
-    }
-  }
+  await bridge.writeWavFile(filePath, buffer);
 }
-
-appState.setKanjishikunExportScheduler(scheduleKanjishikunExport);

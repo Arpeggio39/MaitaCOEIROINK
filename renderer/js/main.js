@@ -3,7 +3,7 @@ import { bridge } from './bridge.js';
 import { initEditor, refreshValueLabels, updateSegmentPanelsVisibility } from './editor.js';
 import { bindEvents } from './events.js';
 import { loadDictionaryFromDisk, syncDictionaryToCoeiroink } from './dictionary.js';
-import { resizeWaveformCanvas, scheduleKanjishikunExport } from './audio.js';
+import { resizeWaveformCanvas } from './audio.js';
 import { migrateProjects, selectProject, syncActiveProjectFromUi } from './projects.js';
 import { loadAppSettingsFromDisk } from './settings.js';
 import { setSyncUiBeforeSave } from './persist.js';
@@ -54,7 +54,6 @@ async function boot() {
   }
 
   selectProject(appState.activeId);
-  scheduleKanjishikunExport();
 }
 
 void boot();

@@ -114,7 +114,6 @@ async function applyDictionaryToCoeiroink() {
   }
   appState.setDictionaryEntries(rows);
   await persistDictionaryToDisk();
-  appState.requestKanjishikunExport();
 }
 
 /** ディスク上の辞書を COEIROINK エンジンへ反映する（起動時など） */

@@ -1,6 +1,6 @@
 {
   "name": "maita-coeiroink-shell",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "琵音マイタ専用の COEIROINK API ラッパー（Electron）",
   "main": "src/main/index.js",
   "author": "Arpeggio",
