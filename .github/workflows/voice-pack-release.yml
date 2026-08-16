@@ -1,4 +1,4 @@
-name: Release Speaker Pack
+name: Release Voice Pack
 
 on:
   push:
@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   bump:
-    name: Bump speaker version
+    name: Bump voice pack version
     if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
     runs-on: ubuntu-latest
     permissions:
@@ -63,7 +63,7 @@ jobs:
           git push origin HEAD:main
 
   release:
-    name: Publish speaker pack
+    name: Publish voice pack
     if: github.event_name != 'workflow_dispatch' || inputs.bump == 'none'
     runs-on: ubuntu-latest
     permissions:
@@ -94,7 +94,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=bionmaita-v$version" >> "$GITHUB_OUTPUT"
           echo "artifact=bionmaita-$version.zip" >> "$GITHUB_OUTPUT"
-          echo "Speaker pack version: $version"
+          echo "Voice pack version: $version"
 
       - name: Skip if release already exists
         id: check
@@ -148,27 +148,27 @@ jobs:
           fi
           gh release create "$tag" \
             --title "bionmaita $version" \
-            --notes "COEIROINK スピーカーパック bionmaita $version" \
+            --notes "COEIROINK 音声パック bionmaita $version" \
             --verify-tag
 
-      - name: Build speaker pack zip
+      - name: Build voice pack zip
         if: steps.check.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
           artifact="${{ steps.version.outputs.artifact }}"
-          staging="dist-speaker/bionmaita-$version"
-          rm -rf dist-speaker
+          staging="dist-voice-pack/bionmaita-$version"
+          rm -rf dist-voice-pack
           mkdir -p "$staging"
           rsync -a \
             --exclude 'version' \
             bionmaita/ "$staging/"
-          (cd dist-speaker && zip -r "../$artifact" "bionmaita-$version")
-          rm -rf dist-speaker
+          (cd dist-voice-pack && zip -r "../$artifact" "bionmaita-$version")
+          rm -rf dist-voice-pack
           ls -lh "$artifact"
 
-      - name: Upload speaker pack to GitHub Release
+      - name: Upload voice pack to GitHub Release
         if: steps.check.outputs.skip != 'true'
         shell: bash
         env:
