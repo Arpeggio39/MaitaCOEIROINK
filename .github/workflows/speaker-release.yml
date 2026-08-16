@@ -1,0 +1,180 @@
+name: Release Speaker Pack
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'bionmaita/**'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'bionmaita/version を自動で上げる（none なら現在値で Release のみ）'
+        required: false
+        type: choice
+        default: none
+        options:
+          - none
+          - patch
+          - minor
+          - major
+      force:
+        description: '既存 Release があっても再ビルドする'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: Bump speaker version
+    if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bump version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < bionmaita/version)"
+          IFS='.' read -r major minor patch <<< "$version"
+          case "${{ inputs.bump }}" in
+            patch) patch=$((patch + 1)) ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            *)
+              echo "Unknown bump type: ${{ inputs.bump }}"
+              exit 1
+              ;;
+          esac
+          new_version="${major}.${minor}.${patch}"
+          echo "$new_version" > bionmaita/version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bionmaita/version
+          git commit -m "chore(bionmaita): bump version to ${new_version}"
+          git push origin HEAD:main
+
+  release:
+    name: Publish speaker pack
+    if: github.event_name != 'workflow_dispatch' || inputs.bump == 'none'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Git LFS
+        run: git lfs install
+
+      - name: Pull LFS objects
+        run: git lfs pull
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < bionmaita/version)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid bionmaita/version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=bionmaita-v$version" >> "$GITHUB_OUTPUT"
+          echo "artifact=bionmaita-$version.zip" >> "$GITHUB_OUTPUT"
+          echo "Speaker pack version: $version"
+
+      - name: Skip if release already exists
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Force rebuild requested."
+            exit 0
+          fi
+          tag="${{ steps.version.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists. Skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Release $tag not found. Will build."
+          fi
+
+      - name: Ensure release tag exists
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          git fetch --tags --force
+          if git show-ref --tags --verify --quiet "refs/tags/$tag"; then
+            echo "Tag $tag already exists."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+
+      - name: Ensure GitHub Release exists
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          version="${{ steps.version.outputs.version }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists."
+            exit 0
+          fi
+          gh release create "$tag" \
+            --title "bionmaita $version" \
+            --notes "COEIROINK スピーカーパック bionmaita $version" \
+            --verify-tag
+
+      - name: Build speaker pack zip
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          artifact="${{ steps.version.outputs.artifact }}"
+          staging="dist-speaker/bionmaita-$version"
+          rm -rf dist-speaker
+          mkdir -p "$staging"
+          rsync -a \
+            --exclude 'version' \
+            bionmaita/ "$staging/"
+          (cd dist-speaker && zip -r "../$artifact" "bionmaita-$version")
+          rm -rf dist-speaker
+          ls -lh "$artifact"
+
+      - name: Upload speaker pack to GitHub Release
+        if: steps.check.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          artifact="${{ steps.version.outputs.artifact }}"
+          gh release upload "$tag" "$artifact" --clobber

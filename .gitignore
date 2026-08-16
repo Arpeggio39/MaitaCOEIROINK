@@ -7,3 +7,7 @@ dist/win-unpacked/
 dist/*.blockmap
 dist/builder-debug.yml
 dist/latest.yml
+
+# speaker-release workflow artifacts
+dist-speaker/
+bionmaita-*.zip

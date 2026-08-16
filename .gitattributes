@@ -1,0 +1,2 @@
+# COEIROINK speaker model weights (Git LFS)
+bionmaita/model/**/*.pth filter=lfs diff=lfs merge=lfs -text
