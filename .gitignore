@@ -1,4 +1,5 @@
 .DS_Store
+**/.DS_Store
 node_modules/
 
 # electron-builder の中間成果物（配布用 Setup.exe はコミット可）
