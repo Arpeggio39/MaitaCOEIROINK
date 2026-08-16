@@ -2,17 +2,17 @@
 
 琵音マイタ専用の COEIROINK API ラッパー（Electron）です。
 
-COEIROINK エンジンと連携して、マイタのナレーション制作を行います。本リポジトリでは、アプリ本体に加えて **bionmaita スピーカーパック** も GitHub Releases から配布しています。
+COEIROINK エンジンと連携して、マイタのナレーション制作を行います。本リポジトリでは、アプリ本体に加えて **bionmaita 音声パック** も GitHub Releases から配布しています。
 
 ## ダウンロード
 
 | 項目 | 入手先 |
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
-| 琵音マイタ スピーカーパック | [GitHub Releases（`bionmaita-v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) |
+| 琵音マイタ 音声パック | [GitHub Releases（`bionmaita-v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) |
 | MaitaCOEIROINK アプリ（Windows） | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) |
 
-最新のスピーカーパックは **`bionmaita-v1.0.0`** タグの Release から `bionmaita-1.0.0.zip` をダウンロードしてください。
+最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) の **`bionmaita-v*`** から `bionmaita-{version}.zip` をダウンロードしてください。
 
 <img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
 
@@ -62,13 +62,13 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 <img src="./docs/images/image8.png" alt="追加ダウンロードされた黄色フォルダー" width="800">
 
-### ③ 琵音マイタ スピーカーパックをダウンロード
+### ③ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases（bionmaita-v1.0.0）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases/tag/bionmaita-v1.0.0) から **`bionmaita-1.0.0.zip`** をダウンロードします。
+[GitHub Releases（bionmaita-v*）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-1.0.1.zip`）。
 
 <img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
 
-ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っています。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.1/`）。
 
 ### ④ speaker_info フォルダーにコピー
 
@@ -76,7 +76,7 @@ ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っ�
 
 <img src="./docs/images/image2.png" alt="speaker_info フォルダーを開く" width="800">
 
-先ほど GitHub からダウンロードして解凍した **`bionmaita-1.0.0`** フォルダーを、**`speaker_info` フォルダー内** に移動してください。
+先ほど GitHub からダウンロードして解凍した **`bionmaita-{version}`** フォルダーを、**`speaker_info` フォルダー内** に移動してください。
 
 ちなみに、元から「つくよみちゃん」というモデルもありますが、これは残してても消しても大丈夫です。
 
@@ -128,15 +128,15 @@ ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っ�
 
 <img src="./docs/images/image12.png" alt="COEIROINK 起動" width="800">
 
-### ④ 琵音マイタ スピーカーパックをダウンロード
+### ④ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases（bionmaita-v1.0.0）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases/tag/bionmaita-v1.0.0) から **`bionmaita-1.0.0.zip`** をダウンロードして展開してください。
+[GitHub Releases（bionmaita-v*）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-1.0.1.zip`）。
 
-ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っています。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.1/`）。
 
 ### ⑤ speaker_info にコピー
 
-次に、Finder サイドバーにある **アプリケーション** にある COEIROINKv2.app で、2 本指クリックしてメニューにある「パッケージの内容を表示」し、**`Contents/MacOS/speaker_info`** に **`bionmaita-1.0.0`** フォルダーを移行する。
+次に、Finder サイドバーにある **アプリケーション** にある COEIROINKv2.app で、2 本指クリックしてメニューにある「パッケージの内容を表示」し、**`Contents/MacOS/speaker_info`** に **`bionmaita-{version}`** フォルダーを移行する。
 
 <img src="./docs/images/image14.png" alt="COEIROINK.app のパッケージ内容を表示" width="800">
 
@@ -156,7 +156,7 @@ ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っ�
 
 ## 開発者向け
 
-### スピーカーパックのバージョン管理
+### 音声パックのバージョン管理
 
 - リポジトリ内のフォルダ名は **`bionmaita/`**（バージョン番号なし）
 - バージョンは **`bionmaita/version`** で管理
@@ -175,8 +175,8 @@ npm start
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
 | MaitaCOEIROINK アプリ | `package.json` の version を更新して main に push | `v0.1.1` |
-| bionmaita スピーカーパック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | `bionmaita-v1.0.0` |
+| bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | `bionmaita-v1.0.1` |
 
-スピーカーパックのバージョンを上げる場合は、GitHub Actions の **Release Speaker Pack** ワークフローから `bump: patch / minor / major` を選んで実行できます。
+音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選んで実行できます。
 
 Git LFS を使う場合は、初回 push 前に `git lfs install` を実行してください。

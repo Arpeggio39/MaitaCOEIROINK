@@ -9,6 +9,6 @@ dist/*.blockmap
 dist/builder-debug.yml
 dist/latest.yml
 
-# speaker-release workflow artifacts
-dist-speaker/
+# voice-pack-release workflow artifacts
+dist-voice-pack/
 bionmaita-*.zip
