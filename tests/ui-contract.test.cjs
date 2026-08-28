@@ -41,3 +41,8 @@ test('手動書き出しは固定フォルダーとtxt同時保存を適用す�
   assert.ok(audio.indexOf('await bridge.writeTextFile') < audio.indexOf('await bridge.writeWavFile'));
   assert.match(html, /WAVと必要に応じて同名のtxt/);
 });
+
+test('再生ボタンは選択中の部分を優先することを案内する', () => {
+  assert.match(html, /選択中の部分を再生（未選択時は全文）/);
+  assert.match(audio, /playbackRangesForSelection\(allRanges, activeSentenceKey\)/);
+});

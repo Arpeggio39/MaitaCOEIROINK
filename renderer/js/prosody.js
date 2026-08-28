@@ -19,6 +19,7 @@ import { showToast } from './utils.js';
 import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
 import { prosodyRequestKey } from './prosody-request-key.mjs';
+import { hasPitchEdits, pitchEditMask } from './prosody-edit-utils.mjs';
 
 /**
  * @param {import('./state.js').SegmentMora[][]} detail
@@ -90,14 +91,7 @@ export function cloneSegmentProsody(src) {
  */
 export function hasProsodyPitchEdits(prosody) {
   const flat = prosody.detail?.flat() ?? [];
-  const baseline = prosody.baselinePitch;
-  if (!baseline?.length || baseline.length !== flat.length) return false;
-  for (let i = 0; i < flat.length; i += 1) {
-    const cur = getMoraPitch(flat[i]);
-    const base = baseline[i];
-    if (Math.abs(cur - base) > 0.001) return true;
-  }
-  return false;
+  return hasPitchEdits(flat.map((m) => getMoraPitch(m)), prosody.baselinePitch);
 }
 
 /**
@@ -112,11 +106,14 @@ export function buildAdjustedF0ForSynthesis(prosody) {
   const adjusted = [...baseF0];
   for (let mi = 0; mi < moraWavRanges.length; mi += 1) {
     if (mi >= flat.length) break;
-    const { start, end } = moraWavRanges[mi];
+    const range = moraWavRanges[mi];
+    const baseline = baselinePitch?.[mi];
+    if (!range || !Number.isFinite(baseline)) continue;
+    const { start, end } = range;
     const i0 = Math.floor((start / f0TotalSamples) * adjusted.length);
     const i1 = Math.min(adjusted.length - 1, Math.ceil((end / f0TotalSamples) * adjusted.length));
     const delta =
-      moraPitchToHz(getMoraPitch(flat[mi])) - moraPitchToHz(baselinePitch[mi] ?? MORA_PITCH_DEFAULT);
+      moraPitchToHz(getMoraPitch(flat[mi])) - moraPitchToHz(baseline);
     if (Math.abs(delta) <= 0.01) continue;
     for (let i = i0; i <= i1; i += 1) {
       if (adjusted[i] > 50) adjusted[i] = Math.max(50, adjusted[i] + delta);
@@ -345,6 +342,8 @@ export function scheduleProsodyKanaReestimate(project, key) {
  * @param {number} [speedScale]
  */
 async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
+  const initialPitches = detail.flat().map((m) => getMoraPitch(m));
+  const previousBaseline = entry.baselinePitch ? [...entry.baselinePitch] : undefined;
   const styleId = await resolveMaitaStyleId();
   const res = await postCoeiroink(
     '/v1/predict_with_duration',
@@ -389,12 +388,23 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
   /** @type {{ f0?: number[], moraDurations?: { hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[] }} */
   const f0data = await f0Res.json();
   if (!Array.isArray(f0data.f0)) throw new Error('F0 データが空です');
+  const currentPitches = detail.flat().map((m) => getMoraPitch(m));
+  const editsToPreserve = pitchEditMask(
+    initialPitches,
+    currentPitches,
+    previousBaseline,
+    MORA_PITCH_DEFAULT,
+  );
   applyF0ToProsodyDetail(
     detail,
     /** @type {typeof f0data.moraDurations} */ (f0data.moraDurations || pred.moraDurations),
     f0data.f0,
     entry,
   );
+  const flat = detail.flat();
+  for (let i = 0; i < flat.length; i += 1) {
+    if (editsToPreserve[i]) flat[i].pitch = currentPitches[i];
+  }
   entry.f0SpeedScale = speedScale;
 }
 
@@ -407,10 +417,10 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
 export function reconcileDefaultPitchesWithBaseline(prosody) {
   const baseline = prosody.baselinePitch;
   const flat = prosody.detail?.flat() ?? [];
-  if (!baseline?.length || baseline.length !== flat.length) return;
+  if (!baseline?.length) return;
   if (!flat.every((m) => getMoraPitch(m) === MORA_PITCH_DEFAULT)) return;
-  for (let i = 0; i < flat.length; i += 1) {
-    flat[i].pitch = baseline[i];
+  for (let i = 0; i < Math.min(flat.length, baseline.length); i += 1) {
+    if (Number.isFinite(baseline[i])) flat[i].pitch = baseline[i];
   }
 }
 
