@@ -10,7 +10,7 @@ COEIROINK エンジンと連携して、マイタのナレーション制作を�
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
 | 琵音マイタ 音声パック | [GitHub Releases（`bionmaita-v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) |
-| MaitaCOEIROINK アプリ（Windows） | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) |
+| OpenMaita アプリ（Windows） | [GitHub Releases（`v*`、表示名 `OpenMaita x.y.z`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) |
 
 最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) の **`bionmaita-v*`** から `bionmaita-{version}.zip` をダウンロードしてください。
 
@@ -156,7 +156,16 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ## 開発者向け
 
-### 音声パックのバージョン管理
+### バージョン管理
+
+OpenMaita アプリと音声パックは、それぞれ独立したバージョンを持ちます。
+
+- OpenMaita アプリのバージョンは **`package.json`** で管理
+- 音声パックのバージョンは **`bionmaita/version`** で管理
+- `bionmaita/**` だけを変更した場合、アプリのRelease処理は起動しません
+- 音声パックのReleaseはGitHub上の「Latest」にせず、OpenMaitaアプリの自動更新先と分離します
+
+### 音声パックの配布形式
 
 - リポジトリ内のフォルダ名は **`bionmaita/`**（バージョン番号なし）
 - バージョンは **`bionmaita/version`** で管理
@@ -174,7 +183,7 @@ npm start
 
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
-| MaitaCOEIROINK アプリ | `package.json` の version を更新して main に push | `v0.1.1` |
+| OpenMaita アプリ | `package.json` の version を更新して main に push | `v0.1.1`（Release名: `OpenMaita 0.1.1`） |
 | bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | `bionmaita-v1.0.1` |
 
 音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選んで実行できます。

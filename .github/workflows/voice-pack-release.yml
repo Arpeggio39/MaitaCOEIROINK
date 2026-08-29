@@ -149,7 +149,8 @@ jobs:
           gh release create "$tag" \
             --title "bionmaita $version" \
             --notes "COEIROINK 音声パック bionmaita $version" \
-            --verify-tag
+            --verify-tag \
+            --latest=false
 
       - name: Build voice pack zip
         if: steps.check.outputs.skip != 'true'
