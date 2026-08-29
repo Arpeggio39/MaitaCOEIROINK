@@ -10,8 +10,10 @@ import {
 import { prosodyRequestKey } from '../renderer/js/prosody-request-key.mjs';
 import {
   findRangeAtCursor,
+  playbackRangesForSelection,
   sentenceRangesFromText,
 } from '../renderer/js/segment-parser.mjs';
+import { hasPitchEdits, pitchEditMask } from '../renderer/js/prosody-edit-utils.mjs';
 
 test('句読点・空白・改行で文章を順序どおりに区切る', () => {
   const text = 'こんにちは。 次です！\n最後';
@@ -52,4 +54,28 @@ test('韻律取得キーは同じ文章位置でもプロジェクトUUIDごと�
   const second = prosodyRequestKey({ id: 'project-b' }, 's0');
   assert.equal(first, 'project-a:s0');
   assert.notEqual(first, second);
+});
+
+test('選択中の区切りだけを再生し、未選択時は全文を再生する', () => {
+  const ranges = sentenceRangesFromText('最初。次です。最後。');
+  assert.deepEqual(
+    playbackRangesForSelection(ranges, ranges[1].key).map((range) => range.text),
+    ['次です。'],
+  );
+  assert.equal(playbackRangesForSelection(ranges, null).length, 3);
+  assert.equal(playbackRangesForSelection(ranges, 'missing').length, 3);
+});
+
+test('F0取得中のピッチ編集は推定値で上書きしない', () => {
+  assert.deepEqual(pitchEditMask([6, 6], [7, 6], undefined, 6), [true, false]);
+  assert.deepEqual(
+    pitchEditMask([6.4, 5.8], [6.4, 5.8], [6.4, 5.2], 6),
+    [false, true],
+  );
+  assert.deepEqual(pitchEditMask([7, 6], [7, 6], undefined, 6), [true, false]);
+});
+
+test('一部のモーラにだけF0基準値がある場合も編集を検出する', () => {
+  assert.equal(hasPitchEdits([6.2, 7, 6], [6.2, 6.5]), true);
+  assert.equal(hasPitchEdits([6.2, 6.5, 8], [6.2, 6.5]), false);
 });

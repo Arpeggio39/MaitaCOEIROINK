@@ -7,6 +7,7 @@ import { els } from './dom.js';
 import { cloneParams, snapshotParamsFromControls } from './params.js';
 import { segmentParamControls } from './dom.js';
 import { getSentenceParams, sentenceRangesFromText } from './segments.js';
+import { playbackRangesForSelection } from './segment-parser.mjs';
 import {
   buildAdjustedF0ForSynthesis,
   ensureProsodyF0Metadata,
@@ -184,10 +185,11 @@ async function synthesizeLine(
   return res.arrayBuffer();
 }
 
-async function buildFullUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE) {
+async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE) {
   saveActiveSegmentParams();
   const p = activeProject();
-  const ranges = sentenceRangesFromText(els.editor.value);
+  const allRanges = sentenceRangesFromText(els.editor.value);
+  const ranges = playbackRangesForSelection(allRanges, activeSentenceKey);
   if (ranges.length === 0) {
     throw new Error('読み上げるテキストがありません（句読点・スペース・改行で区切られた部分が必要です）。');
   }
@@ -267,7 +269,7 @@ function startWaveformAnimation() {
 }
 
 function setPlaybackUi(playing) {
-  els.btnPlay.title = playing ? '停止' : '再生';
+  els.btnPlay.title = playing ? '停止' : '選択中の部分を再生（未選択時は全文）';
   els.btnPlayIconPlay.classList.toggle('hidden', playing);
   els.btnPlayIconStop.classList.toggle('hidden', !playing);
   els.waveformCanvas.classList.toggle('is-active', playing);
@@ -319,7 +321,7 @@ async function playAudio() {
   try {
     stopPlayback();
 
-    const buf = await buildFullUtterance(PLAYBACK_SAMPLE_RATE);
+    const buf = await buildPlaybackUtterance(PLAYBACK_SAMPLE_RATE);
     const blob = new Blob([buf], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
     appState.setCurrentBlobUrl(url);

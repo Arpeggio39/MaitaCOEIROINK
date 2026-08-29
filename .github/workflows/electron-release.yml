@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'bionmaita/**'
+      - '.github/workflows/voice-pack-release.yml'
   workflow_dispatch:
     inputs:
       force:
@@ -121,7 +124,7 @@ jobs:
             Write-Host "Release $tag already exists."
             exit 0
           }
-          gh release create $tag --title $version --verify-tag --latest
+          gh release create $tag --title "OpenMaita $version" --verify-tag --latest
 
       - name: Install dependencies
         if: steps.check.outputs.skip != 'true'

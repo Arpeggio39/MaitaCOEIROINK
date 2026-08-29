@@ -62,6 +62,17 @@ export function findRangeAtCursor(pos, ranges) {
   return ranges.find((range) => pos >= range.start && pos < range.end) || null;
 }
 
+/**
+ * 区切りが選択されていればその区切りだけ、未選択なら全文を再生する。
+ * @param {{ key: string }[]} ranges
+ * @param {string | null} activeKey
+ */
+export function playbackRangesForSelection(ranges, activeKey) {
+  if (activeKey == null) return ranges;
+  const selected = ranges.find((range) => range.key === activeKey);
+  return selected ? [selected] : ranges;
+}
+
 export function sentencesFromText(text) {
   return sentenceRangesFromText(text).map((range) => range.text);
 }
