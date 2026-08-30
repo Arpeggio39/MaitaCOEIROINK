@@ -160,6 +160,8 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 OpenMaita アプリと音声パックは、**`package.json` の version** で統一管理します。
 
+- **原則として Release は 0.1 刻み**（例: `1.0.0` → `1.1.0` → `1.2.0`）で上げます
+- 同じバージョンの Release が既にある状態で main に push すると、CI が自動で minor を 1 つ上げてからビルドします
 - `bionmaita/**` だけを変更した場合、アプリの Release 処理（exe ビルド）は起動しません
 - 音声パックの ZIP は、同じ `v*` タグの OpenMaita Release にアップロードされます
 - exe を公開したときに、その Release が GitHub の **Latest** に設定されます（自動更新の検知に必要）
@@ -182,9 +184,9 @@ npm start
 
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
-| OpenMaita アプリ（exe） | `package.json` の version を更新して main に push | `v1.0.0`（Release名: `OpenMaita 1.0.0`） |
+| OpenMaita アプリ（exe） | main への push（`bionmaita/**` 以外） | `v1.0.0` → 次回 `v1.1.0`（Release名: `OpenMaita 1.1.0`） |
 | bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | 同上の `v*` Release に ZIP を追加 |
 
-音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選ぶと `package.json` が更新されます。音声パックだけ差し替える場合は `bump: none` で現在のバージョンの Release に上書きアップロードできます。
+音声パックを手動リリースする場合は、GitHub Actions の **Release Voice Pack** ワークフローから実行します。既定では `bump: minor`（0.1 刻み）が選ばれます。同じバージョンの ZIP だけ差し替える場合は `bump: none` を選び、`force` で上書きアップロードできます。例外的に `patch` / `major` も選べます。
 
 Git LFS を使う場合は、初回 push 前に `git lfs install` を実行してください。
