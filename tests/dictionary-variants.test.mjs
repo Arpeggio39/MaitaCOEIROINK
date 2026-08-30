@@ -33,3 +33,11 @@ test('buildDictionaryPayload は表記ゆれを展開して COEIROINK に送る'
   assert.ok(words.includes('ARPEGGIO'));
   assert.equal(payload.dictionaryWords.find((e) => e.word === 'arpeggio')?.yomi, 'アルペジオ');
 });
+
+test('辞書アクセントは API に送るモーラ数の範囲へ収める', () => {
+  const payload = buildDictionaryPayload([
+    { word: 'test', yomi: 'テスト', accent: 99 },
+  ]);
+  assert.ok(payload.dictionaryWords.length > 0);
+  assert.ok(payload.dictionaryWords.every((entry) => entry.accent === 3 && entry.numMoras === 3));
+});

@@ -57,6 +57,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          lfs: true
+
+      - name: Setup Git LFS
+        shell: pwsh
+        run: git lfs install
+
+      - name: Pull LFS objects
+        shell: pwsh
+        run: git lfs pull
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -139,6 +149,21 @@ jobs:
         run: npx electron-builder --win --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build voice pack zip
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        run: node scripts/build-voice-pack.cjs "${{ steps.version.outputs.version }}"
+
+      - name: Upload voice pack to GitHub Release
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          $artifact = "bionmaita-${{ steps.version.outputs.version }}.zip"
+          gh release upload $tag $artifact --clobber
 
       - name: Mark release as latest
         if: steps.check.outputs.skip != 'true'

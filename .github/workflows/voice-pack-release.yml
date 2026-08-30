@@ -156,14 +156,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          artifact="bionmaita-$version.zip"
-          staging="dist-voice-pack/bionmaita-$version"
-          rm -rf dist-voice-pack
-          mkdir -p "$staging"
-          rsync -a bionmaita/ "$staging/"
-          (cd dist-voice-pack && zip -r "../$artifact" "bionmaita-$version")
-          rm -rf dist-voice-pack
+          artifact="$(node scripts/build-voice-pack.cjs "${{ steps.version.outputs.version }}")"
           ls -lh "$artifact"
 
       - name: Upload voice pack to GitHub Release

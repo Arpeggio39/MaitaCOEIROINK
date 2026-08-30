@@ -13,7 +13,7 @@ import {
   playbackRangesForSelection,
   sentenceRangesFromText,
 } from '../renderer/js/segment-parser.mjs';
-import { hasPitchEdits, pitchEditMask } from '../renderer/js/prosody-edit-utils.mjs';
+import { hasPitchEdits, hasProsodyPitchEditsState, pitchEditMask } from '../renderer/js/prosody-edit-utils.mjs';
 
 test('句読点・空白・改行で文章を順序どおりに区切る', () => {
   const text = 'こんにちは。 次です！\n最後';
@@ -78,4 +78,10 @@ test('F0取得中のピッチ編集は推定値で上書きしない', () => {
 test('一部のモーラにだけF0基準値がある場合も編集を検出する', () => {
   assert.equal(hasPitchEdits([6.2, 7, 6], [6.2, 6.5]), true);
   assert.equal(hasPitchEdits([6.2, 6.5, 8], [6.2, 6.5]), false);
+});
+
+test('手動ピッチ編集フラグがあれば baseline なしでも編集とみなす', () => {
+  assert.equal(hasProsodyPitchEditsState(true, [6, 6, 6], undefined), true);
+  assert.equal(hasProsodyPitchEditsState(false, [6, 6, 6], undefined), false);
+  assert.equal(hasProsodyPitchEditsState(false, [8, 6, 6], undefined), false);
 });

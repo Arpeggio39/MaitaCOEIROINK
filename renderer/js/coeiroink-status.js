@@ -1,5 +1,11 @@
 import { MAITA_UUID } from './constants.js';
 import { probeCoeiroinkReachable, resetApiBaseCache } from './coeiroink-api.js';
+import { parseSpeakersPathVariant } from './coeiroink-contract.mjs';
+import {
+  initCoeiroinkWarning,
+  maybeShowCoeiroinkWarningForStatus,
+  onCoeiroinkOnline,
+} from './coeiroink-warning.js';
 import { els } from './dom.js';
 import { fetchWithTimeout } from './utils.js';
 
@@ -48,35 +54,55 @@ function renderCoeiroinkStatus(kind, opts = {}) {
   }
 }
 
+/**
+ * @param {CoeiroinkStatusKind} kind
+ * @param {{ initial?: boolean, previousKind?: CoeiroinkStatusKind | null }} opts
+ */
+function applyCoeiroinkWarning(kind, { initial = false, previousKind = null } = {}) {
+  if (kind === 'online') {
+    onCoeiroinkOnline();
+    return;
+  }
+  if (kind === 'offline' || kind === 'no-maita') {
+    maybeShowCoeiroinkWarningForStatus(kind, { initial, previousKind });
+  }
+}
+
 async function refreshCoeiroinkStatus({ initial = false } = {}) {
+  const previousKind = lastRenderedKind;
   renderCoeiroinkStatus('checking', { showChecking: initial });
 
   const base = await probeCoeiroinkReachable();
   if (!base) {
     resetApiBaseCache();
     renderCoeiroinkStatus('offline');
+    applyCoeiroinkWarning('offline', { initial, previousKind });
     return;
   }
 
   try {
     const res = await fetchWithTimeout(`${base}/v1/speakers_path_variant`, {}, 5000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  /** @type {{ speakerUuid: string; styles?: unknown[] }[]} */
-    const list = await res.json();
+    /** @type {{ speakerUuid: string; styles?: unknown[] }[]} */
+    const list = parseSpeakersPathVariant(await res.json());
     const maita = list.find((s) => s.speakerUuid === MAITA_UUID);
     if (!maita?.styles?.length) {
       renderCoeiroinkStatus('no-maita');
+      applyCoeiroinkWarning('no-maita', { initial, previousKind });
       return;
     }
     renderCoeiroinkStatus('online');
+    applyCoeiroinkWarning('online', { initial, previousKind });
   } catch {
     resetApiBaseCache();
     renderCoeiroinkStatus('offline');
+    applyCoeiroinkWarning('offline', { initial, previousKind });
   }
 }
 
 /** サイドバー左下の COEIROINK 起動ステータス表示を開始する */
 export function initCoeiroinkStatus() {
+  initCoeiroinkWarning(() => refreshCoeiroinkStatus());
   void refreshCoeiroinkStatus({ initial: true });
   setInterval(() => {
     void refreshCoeiroinkStatus();

@@ -1,18 +1,19 @@
 import { MAITA_UUID } from './constants.js';
 import * as appState from './state.js';
 import { resolveApiBase } from './coeiroink-api.js';
+import { parseSpeakersPathVariant } from './coeiroink-contract.mjs';
 import { fetchWithTimeout } from './utils.js';
 
 /** 合成・韻律 API 呼び出し時に styleId が必要な場合だけ取得する */
 export async function resolveMaitaStyleId() {
-  if (appState.maitaStyleId) return appState.maitaStyleId;
+  if (Number.isInteger(appState.maitaStyleId)) return appState.maitaStyleId;
 
   try {
     const base = await resolveApiBase();
     const res = await fetchWithTimeout(`${base}/v1/speakers_path_variant`, {}, 8000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     /** @type {{ speakerUuid: string, styles: { styleId: number, styleName: string }[]}[]} */
-    const list = await res.json();
+    const list = parseSpeakersPathVariant(await res.json());
     const maita = list.find((s) => s.speakerUuid === MAITA_UUID);
     if (!maita?.styles?.length) {
       throw new Error('この COEIROINK に琵音マイタが見つかりません。');

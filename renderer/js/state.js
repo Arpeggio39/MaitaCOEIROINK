@@ -4,7 +4,7 @@ import { EXPORT_SAMPLE_RATE_DEFAULT } from './constants.js';
 /** @typedef {{ key: string, start: number, end: number, text: string, index: number }} SentenceRange */
 /** @typedef {{ phoneme: string, hira: string, accent: number, pitch?: number }} SegmentMora */
 /** @typedef {{ start: number, end: number }} MoraWavRange */
-/** @typedef {{ text: string, detail: SegmentMora[][], baseF0?: number[], baselinePitch?: number[], moraWavRanges?: MoraWavRange[], f0TotalSamples?: number, f0SpeedScale?: number }} SegmentProsody */
+/** @typedef {{ text: string, detail: SegmentMora[][], baseF0?: number[], baselinePitch?: number[], moraWavRanges?: MoraWavRange[], f0TotalSamples?: number, f0SpeedScale?: number, pitchEditedByUser?: boolean }} SegmentProsody */
 /** @typedef {{ id: string, title: string, text: string, titleEdited?: boolean, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, sentenceProsodyByKey?: Record<string, SegmentProsody>, updatedAt: string }} Project */
 
 /** @type {Project[]} */
@@ -43,7 +43,8 @@ export let exportTextFileEnabled = false;
 export let exportTextEncoding = 'utf8';
 
 /** 琵音マイタの API styleId */
-export let maitaStyleId = 0;
+/** @type {number | null} */
+export let maitaStyleId = null;
 
 /** @type {HTMLAudioElement | null} */
 export let currentAudio = null;

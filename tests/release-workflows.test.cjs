@@ -44,10 +44,19 @@ test('音声パックだけの変更ではアプリReleaseを起動しない', (
 test('音声パックは OpenMaita と同じ v* Release にアップロードする', () => {
   assert.match(electronWorkflow, /--title \"OpenMaita \$version\" --verify-tag --latest/);
   assert.match(electronWorkflow, /gh release edit \$tag --latest/);
+  assert.match(electronWorkflow, /build-voice-pack\.cjs/);
+  assert.match(electronWorkflow, /gh release upload \$tag \$artifact --clobber/);
   assert.match(voicePackWorkflow, /--title \"OpenMaita \$version\"/);
   assert.match(voicePackWorkflow, /--latest=false/);
   assert.match(voicePackWorkflow, /gh release upload \"\$tag\"/);
+  assert.match(voicePackWorkflow, /build-voice-pack\.cjs/);
   assert.doesNotMatch(voicePackWorkflow, /bionmaita-v/);
+});
+
+test('アプリ Release では exe と音声パックを同時に公開する', () => {
+  assert.match(electronWorkflow, /electron-builder --win --x64 --publish always/);
+  assert.match(electronWorkflow, /lfs: true/);
+  assert.match(electronWorkflow, /git lfs pull/);
 });
 
 test('起動時の更新確認はメインウィンドウ表示後に行う', () => {

@@ -1,4 +1,5 @@
 import { PARAM_DEFAULTS } from './constants.js';
+import { cloneParams } from './params.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
 import { migrateSentenceParamsForProject } from './segments.js';
@@ -96,10 +97,10 @@ export function migrateProjects(list) {
     const p = /** @type {import('./state.js').Project} */ (raw);
     if (!p.id) p.id = crypto.randomUUID();
     if (!p.updatedAt) p.updatedAt = now;
-    if (p.params) delete p.params.outputSamplingRate;
+    p.params = cloneParams(p.params || PARAM_DEFAULTS);
     if (p.sentenceParamsByKey) {
       for (const k of Object.keys(p.sentenceParamsByKey)) {
-        delete p.sentenceParamsByKey[k].outputSamplingRate;
+        p.sentenceParamsByKey[k] = cloneParams(p.sentenceParamsByKey[k]);
       }
     }
     if (!Array.isArray(p.sentenceParams) && !p.sentenceParamsByKey) p.sentenceParamsByKey = {};

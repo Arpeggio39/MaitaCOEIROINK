@@ -1,5 +1,11 @@
 import { postCoeiroink } from './coeiroink-api.js';
 import {
+  buildEstimateF0Payload,
+  buildPredictWithDurationPayload,
+  buildProsodyPayload,
+  parseWorldF0Response,
+} from './coeiroink-contract.mjs';
+import {
   MAITA_UUID,
   MORA_PITCH_DEFAULT,
   MORA_PITCH_MAX,
@@ -15,11 +21,11 @@ import {
   setProsodyScheduleTimer,
 } from './state.js';
 import * as appState from './state.js';
-import { showToast } from './utils.js';
+import { showOperationError } from './coeiroink-warning.js';
 import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
 import { prosodyRequestKey } from './prosody-request-key.mjs';
-import { hasPitchEdits, pitchEditMask } from './prosody-edit-utils.mjs';
+import { hasProsodyPitchEditsState, pitchEditMask } from './prosody-edit-utils.mjs';
 
 /**
  * @param {import('./state.js').SegmentMora[][]} detail
@@ -83,7 +89,15 @@ export function cloneSegmentProsody(src) {
     moraWavRanges: src.moraWavRanges ? src.moraWavRanges.map((r) => ({ ...r })) : undefined,
     f0TotalSamples: src.f0TotalSamples,
     f0SpeedScale: src.f0SpeedScale,
+    pitchEditedByUser: src.pitchEditedByUser,
   };
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} prosody
+ */
+export function markProsodyPitchEdited(prosody) {
+  prosody.pitchEditedByUser = true;
 }
 
 /**
@@ -91,7 +105,11 @@ export function cloneSegmentProsody(src) {
  */
 export function hasProsodyPitchEdits(prosody) {
   const flat = prosody.detail?.flat() ?? [];
-  return hasPitchEdits(flat.map((m) => getMoraPitch(m)), prosody.baselinePitch);
+  return hasProsodyPitchEditsState(
+    prosody.pitchEditedByUser,
+    flat.map((m) => getMoraPitch(m)),
+    prosody.baselinePitch,
+  );
 }
 
 /**
@@ -211,7 +229,7 @@ async function fetchEstimateProsody(text) {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify(buildProsodyPayload(text)),
     },
     30000,
   );
@@ -236,7 +254,7 @@ async function fetchEstimateProsodyFromKana(kana) {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: kana }),
+      body: JSON.stringify(buildProsodyPayload(kana)),
     },
     30000,
   );
@@ -286,6 +304,7 @@ export async function reestimateProsodyFromKana(project, key) {
       }
     }
     entry.detail = newDetail;
+    if (hadUserEdits) entry.pitchEditedByUser = true;
     try {
       await fetchPredictF0ForProsody(
         entry.text,
@@ -305,7 +324,7 @@ export async function reestimateProsodyFromKana(project, key) {
     schedulePersist();
   } catch (e) {
     if (activeSentenceKey === key) {
-      showToast(e instanceof Error ? e.message : String(e));
+      showOperationError(e);
     }
   } finally {
     kanaReestimateInFlight.delete(requestKey);
@@ -350,13 +369,13 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: JSON.stringify(buildPredictWithDurationPayload({
         speakerUuid: MAITA_UUID,
-        styleId: styleId,
+        styleId,
         text,
         prosodyDetail: prosodyDetailForApi(detail),
         speedScale,
-      }),
+      })),
     },
     120000,
   );
@@ -364,20 +383,15 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(errText || `ピッチ推定に失敗 (${res.status})`);
   }
-  /** @type {{ wavBase64?: string, moraDurations?: unknown[] }} */
+  /** @type {{ wavBase64?: string, moraDurations?: unknown[], startTrimBuffer?: number, endTrimBuffer?: number }} */
   const pred = await res.json();
-  if (!pred.wavBase64 || !Array.isArray(pred.moraDurations)) {
-    throw new Error('ピッチ推定の応答が不正です');
-  }
+  const f0Payload = buildEstimateF0Payload(pred);
   const f0Res = await postCoeiroink(
     '/v1/estimate_f0',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        wavBase64: pred.wavBase64,
-        moraDurations: pred.moraDurations,
-      }),
+      body: JSON.stringify(f0Payload),
     },
     60000,
   );
@@ -385,9 +399,8 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
     const errText = await f0Res.text().catch(() => f0Res.statusText);
     throw new Error(errText || `F0 推定に失敗 (${f0Res.status})`);
   }
-  /** @type {{ f0?: number[], moraDurations?: { hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[] }} */
-  const f0data = await f0Res.json();
-  if (!Array.isArray(f0data.f0)) throw new Error('F0 データが空です');
+  const f0data = parseWorldF0Response(await f0Res.json());
+  if (f0data.f0.length === 0) throw new Error('F0 データが空です');
   const currentPitches = detail.flat().map((m) => getMoraPitch(m));
   const editsToPreserve = pitchEditMask(
     initialPitches,
@@ -397,7 +410,7 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
   );
   applyF0ToProsodyDetail(
     detail,
-    /** @type {typeof f0data.moraDurations} */ (f0data.moraDurations || pred.moraDurations),
+    /** @type {{ hira?: string, phonemePitches?: { wavRange: { start: number, end: number } }[] }[]} */ (f0data.moraDurations),
     f0data.f0,
     entry,
   );
@@ -405,6 +418,7 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
   for (let i = 0; i < flat.length; i += 1) {
     if (editsToPreserve[i]) flat[i].pitch = currentPitches[i];
   }
+  if (editsToPreserve.some(Boolean)) entry.pitchEditedByUser = true;
   entry.f0SpeedScale = speedScale;
 }
 
@@ -446,9 +460,15 @@ export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
       for (let i = 0; i < flat.length; i += 1) {
         if (i < savedPitches.length) flat[i].pitch = savedPitches[i];
       }
+      entry.pitchEditedByUser = true;
     }
-  } catch (_) {
-    /* 合成時のフォールバック失敗は adjustedF0 なしで続行 */
+  } catch (e) {
+    if (hasProsodyPitchEdits(entry)) {
+      throw new Error(
+        'ピッチ調整を反映するための F0 取得に失敗しました。COEIROINK の状態を確認して「韻律を再取得」を試してください。',
+        { cause: e },
+      );
+    }
   }
 }
 
@@ -590,7 +610,7 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
       await fetchPredictF0ForProsody(trimmed, detail, project.sentenceProsodyByKey[key], speedScale);
     } catch (e) {
       if (prosodyFetchGeneration.get(requestKey) === gen) {
-        showToast(e instanceof Error ? e.message : String(e));
+        showOperationError(e);
       }
     }
 
@@ -600,7 +620,7 @@ export async function ensureSegmentProsody(project, key, text, opts = {}) {
   } catch (e) {
     if (prosodyFetchGeneration.get(requestKey) !== gen) return;
     delete project.sentenceProsodyByKey[key];
-    showToast(e instanceof Error ? e.message : String(e));
+    showOperationError(e);
   } finally {
     if (prosodyFetchGeneration.get(requestKey) === gen) {
       prosodyFetchInFlight.delete(requestKey);
