@@ -1,7 +1,7 @@
 {
-  "name": "maita-coeiroink-shell",
+  "name": "openmaita-shell",
   "version": "0.1.1",
-  "description": "琵音マイタ専用の COEIROINK API ラッパー（Electron）",
+  "description": "琵音マイタ専用の COEIROINK API ラッパー OpenMaita（Electron）",
   "main": "src/main/index.js",
   "author": "Arpeggio",
   "license": "MIT",
@@ -19,8 +19,8 @@
     "dist:win:dir": "electron-builder --win --x64 --dir"
   },
   "build": {
-    "appId": "jp.arpeggio.maita-coeiroink",
-    "productName": "MaitaCOEIROINK",
+    "appId": "jp.arpeggio.openmaita",
+    "productName": "OpenMaita",
     "directories": {
       "output": "dist"
     },
@@ -43,8 +43,8 @@
       "category": "public.app-category.music"
     },
     "dmg": {
-      "title": "MaitaCOEIROINK ${version}",
-      "artifactName": "MaitaCOEIROINK-${version}.${ext}"
+      "title": "OpenMaita ${version}",
+      "artifactName": "OpenMaita-${version}.${ext}"
     },
     "win": {
       "target": [
@@ -55,7 +55,7 @@
           ]
         }
       ],
-      "executableName": "MaitaCOEIROINK"
+      "executableName": "OpenMaita"
     },
     "publish": {
       "provider": "github",
@@ -70,14 +70,14 @@
       "allowElevation": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MaitaCOEIROINK",
-      "uninstallDisplayName": "MaitaCOEIROINK",
+      "shortcutName": "OpenMaita",
+      "uninstallDisplayName": "OpenMaita",
       "installerLanguages": [
         "ja_JP",
         "en_US"
       ],
       "language": "1041",
-      "artifactName": "MaitaCOEIROINK-Setup-${version}.${ext}",
+      "artifactName": "OpenMaita-Setup-${version}.${ext}",
       "include": "build/installer.nsh"
     }
   },
