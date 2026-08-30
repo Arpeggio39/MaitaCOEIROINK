@@ -1,20 +1,20 @@
 # OpenMaita
 
-琵音マイタ専用の COEIROINK API ラッパー **OpenMaita**（Electron）です。
+COEIROINK で琵音マイタのナレーションを作るための Windows アプリ **OpenMaita** です。
 
-COEIROINK エンジンと連携して、マイタのナレーション制作を行います。本リポジトリでは、アプリ本体に加えて **bionmaita 音声パック** も GitHub Releases から配布しています。
+マイタの音声パックも、同じダウンロードページから配布しています。
 
 ## ダウンロード
 
 | 項目 | 入手先 |
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
-| OpenMaita アプリ（Windows） | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `OpenMaita-Setup-{version}.exe` |
-| 琵音マイタ 音声パック | 同上の Release の `bionmaita-{version}.zip` |
+| OpenMaita アプリ（Windows） | [ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `OpenMaita-Setup-{version}.exe` |
+| 琵音マイタ 音声パック | 同上の `bionmaita-{version}.zip` |
 
-最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の **`OpenMaita x.y.z`** から `bionmaita-{version}.zip` をダウンロードしてください（アプリ exe と同じ Release に含まれます）。
+最新の音声パックは [ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の **OpenMaita x.y.z** から取得できます（アプリと同じページにあります）。
 
-<img src="./docs/images/github-release-openmaita.png" alt="GitHub Releases から OpenMaita と音声パックをダウンロード" width="800">
+<img src="./docs/images/github-release-openmaita.png" alt="ダウンロードページから OpenMaita と音声パックを取得" width="800">
 
 ---
 
@@ -64,9 +64,9 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 ### ③ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-0.1.1.zip`）。OpenMaita アプリと同じ Release（`v*`）に含まれています。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-0.1.1.zip`）。アプリと同じページにあります。
 
-<img src="./docs/images/github-release-openmaita.png" alt="GitHub Releases から OpenMaita と音声パックをダウンロード" width="800">
+<img src="./docs/images/github-release-openmaita.png" alt="ダウンロードページから OpenMaita と音声パックを取得" width="800">
 
 ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
 
@@ -130,7 +130,7 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### ④ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-0.1.1.zip`）。OpenMaita アプリと同じ Release（`v*`）に含まれています。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-0.1.1.zip`）。アプリと同じページにあります。
 
 ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
 

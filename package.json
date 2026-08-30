@@ -1,7 +1,7 @@
 {
   "name": "openmaita-shell",
   "version": "0.1.1",
-  "description": "琵音マイタ専用の COEIROINK API ラッパー OpenMaita（Electron）",
+  "description": "COEIROINK で琵音マイタのナレーションを作る Windows アプリ",
   "main": "src/main/index.js",
   "author": "Arpeggio",
   "license": "MIT",
