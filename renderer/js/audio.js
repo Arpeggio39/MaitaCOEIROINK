@@ -3,8 +3,9 @@ import {
   PLAYBACK_SAMPLE_RATE,
 } from './constants.js';
 import { postCoeiroink } from './coeiroink-api.js';
+import { buildSynthesisPayload } from './coeiroink-contract.mjs';
 import { els } from './dom.js';
-import { cloneParams, snapshotParamsFromControls } from './params.js';
+import { snapshotParamsFromControls } from './params.js';
 import { segmentParamControls } from './dom.js';
 import { getSentenceParams, sentenceRangesFromText } from './segments.js';
 import { playbackRangesForSelection } from './segment-parser.mjs';
@@ -19,6 +20,7 @@ import {
 import { resolveMaitaStyleId } from './engine.js';
 import { activeProject, activeSentenceKey } from './state.js';
 import * as appState from './state.js';
+import { showOperationError } from './coeiroink-warning.js';
 import { coerceSampleRate, showToast } from './utils.js';
 import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
@@ -148,27 +150,24 @@ async function synthesizeLine(
     await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale);
   }
   const detail = prosodyOverride?.detail?.length ? prosodyDetailForApi(prosodyOverride.detail) : [];
-  /** @type {Record<string, unknown>} */
-  const body = {
+  let adjustedF0 = [];
+  if (prosodyOverride && hasProsodyPitchEdits(prosodyOverride)) {
+    adjustedF0 = buildAdjustedF0ForSynthesis(prosodyOverride);
+    if (!adjustedF0) {
+      throw new Error(
+        'ピッチ調整を合成に反映できませんでした。文章を選択して「韻律を再取得」を試してください。',
+      );
+    }
+  }
+  const body = buildSynthesisPayload({
     speakerUuid: MAITA_UUID,
-    styleId: styleId,
+    styleId,
     text: textLine,
     prosodyDetail: detail,
-    speedScale: params.speedScale,
-    volumeScale: params.volumeScale,
-    pitchScale: params.pitchScale,
-    intonationScale: params.intonationScale,
-    prePhonemeLength: params.prePhonemeLength,
-    postPhonemeLength: params.postPhonemeLength,
+    params,
     outputSamplingRate: coerceSampleRate(outputSamplingRate),
-    processingAlgorithm: params.processingAlgorithm,
-    sampledIntervalValue: 0,
-    adjustedF0: [],
-  };
-  if (prosodyOverride && hasProsodyPitchEdits(prosodyOverride)) {
-    const adjustedF0 = buildAdjustedF0ForSynthesis(prosodyOverride);
-    if (adjustedF0) body.adjustedF0 = adjustedF0;
-  }
+    adjustedF0,
+  });
   const res = await postCoeiroink(
     '/v1/synthesis',
     {
@@ -337,7 +336,7 @@ async function playAudio() {
     startWaveformAnimation();
   } catch (e) {
     stopPlayback();
-    showToast(e instanceof Error ? e.message : String(e));
+    showOperationError(e);
   } finally {
     els.btnPlay.disabled = false;
   }
@@ -386,7 +385,7 @@ export async function exportAllAudio() {
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV';
     showToast(`${ranges.length}件の${artifactLabel}を書き出しました: ${directory}`);
   } catch (e) {
-    showToast(e instanceof Error ? e.message : String(e));
+    showOperationError(e);
   } finally {
     els.btnExportAll.disabled = false;
   }
@@ -435,7 +434,7 @@ export async function exportSelectedAudio() {
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : '';
     showToast(`${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
-    showToast(e instanceof Error ? e.message : String(e));
+    showOperationError(e);
   } finally {
     els.btnExportSelected.disabled = activeSentenceKey == null;
   }

@@ -1,4 +1,4 @@
-import { SAMPLE_RATE_OPTIONS } from './constants.js';
+import { EXPORT_SAMPLE_RATE_DEFAULT, SAMPLE_RATE_OPTIONS } from './constants.js';
 import { els } from './dom.js';
 
 /**
@@ -15,7 +15,8 @@ export function fetchWithTimeout(url, init = {}, ms = 8000) {
 export function coerceSampleRate(value) {
   const num = Number(value);
   if (Number.isFinite(num) && SAMPLE_RATE_OPTIONS.includes(num)) return num;
-  let best = SAMPLE_RATE_OPTIONS[0];
+  if (!Number.isFinite(num)) return EXPORT_SAMPLE_RATE_DEFAULT;
+  let best = EXPORT_SAMPLE_RATE_DEFAULT;
   let bestDist = Infinity;
   for (const r of SAMPLE_RATE_OPTIONS) {
     const d = Math.abs(r - num);

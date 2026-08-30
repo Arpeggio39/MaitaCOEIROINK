@@ -36,3 +36,13 @@ export function hasPitchEdits(pitches, baseline) {
     return Number.isFinite(base) && Math.abs(pitch - base) > PITCH_EPSILON;
   });
 }
+
+/**
+ * @param {boolean | undefined} pitchEditedByUser
+ * @param {number[]} pitches
+ * @param {number[] | undefined} baseline
+ */
+export function hasProsodyPitchEditsState(pitchEditedByUser, pitches, baseline) {
+  if (pitchEditedByUser) return true;
+  return hasPitchEdits(pitches, baseline);
+}

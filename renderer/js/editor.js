@@ -21,6 +21,7 @@ import {
   ensureSegmentProsody,
   getMoraPitch,
   getSegmentProsody,
+  markProsodyPitchEdited,
   remapSentenceProsody,
   scheduleProsodyForRanges,
   scheduleProsodyKanaReestimate,
@@ -245,6 +246,7 @@ export function renderIntonationUI() {
     slider.addEventListener('input', () => {
       const v = Number(slider.value);
       setMoraPitch(cell.mora, v);
+      if (entry) markProsodyPitchEdited(entry);
       const group = moraUi.get(cell.mora);
       if (group) {
         for (const s of group.sliders) s.value = String(v);

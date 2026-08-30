@@ -1207,7 +1207,16 @@ button {
   color: #b91c1c;
 }
 
-.boot-overlay .btn-modal-primary {
+.boot-overlay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 280px;
   margin-top: 4px;
-  min-width: 220px;
+}
+
+.boot-overlay .btn-modal-primary,
+.boot-overlay .btn-modal-secondary {
+  width: 100%;
 }

@@ -2,6 +2,7 @@ import { buildDictionaryPayload, postCoeiroink } from './coeiroink-api.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
 import * as appState from './state.js';
+import { showOperationError } from './coeiroink-warning.js';
 import { showToast } from './utils.js';
 
 function normalizeDictionaryEntries(raw) {
@@ -138,7 +139,7 @@ export async function saveDictionaryFromModal() {
     showToast('辞書を保存しました');
     closeDictionaryModal();
   } catch (e) {
-    showToast(e instanceof Error ? e.message : String(e));
+    showOperationError(e);
   } finally {
     els.btnDictApply.disabled = false;
   }

@@ -167,6 +167,30 @@
     </main>
   </div>
 
+  <div
+    id="coeiroinkWarningModal"
+    class="boot-overlay is-hidden"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="coeiroinkWarningTitle"
+    aria-describedby="coeiroinkWarningMessage"
+  >
+    <div class="boot-overlay-inner">
+      <img class="boot-overlay-logo" src="portrait.png" width="64" height="64" alt="" />
+      <h2 id="coeiroinkWarningTitle" class="boot-overlay-title">COEIROINK が起動していません</h2>
+      <p id="coeiroinkWarningMessage" class="boot-overlay-message connect-prompt-desc"></p>
+      <p id="coeiroinkWarningFeedback" class="connect-prompt-feedback" hidden></p>
+      <div id="coeiroinkWarningSpinner" class="boot-overlay-spinner-row hidden">
+        <span class="boot-overlay-spinner" aria-hidden="true"></span>
+        <span>再接続を確認中…</span>
+      </div>
+      <div class="boot-overlay-actions">
+        <button type="button" id="btnCoeiroinkRetry" class="btn btn-modal-primary">再接続</button>
+        <button type="button" id="btnCoeiroinkDismiss" class="btn btn-modal-secondary">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <p id="toast" class="toast" role="status" aria-live="polite" hidden></p>
 
   <div id="dictionaryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="dictionaryModalTitle">

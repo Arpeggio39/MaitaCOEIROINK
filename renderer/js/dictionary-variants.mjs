@@ -68,8 +68,11 @@ export function buildDictionaryPayload(rows) {
 
   for (const e of rows) {
     const yomi = e.yomi;
-    const accent = e.accent;
     const numMoras = countMorasFromYomi(yomi);
+    const rawAccent = Number(e.accent);
+    const accent = Number.isFinite(rawAccent)
+      ? Math.max(0, Math.min(numMoras, Math.floor(rawAccent)))
+      : 0;
     for (const variant of dictionaryWordVariants(e.word)) {
       if (!byWord.has(variant)) {
         byWord.set(variant, { word: variant, yomi, accent, numMoras });

@@ -58,6 +58,13 @@ export const els = {
   intonationSliderStrip: document.getElementById('intonationSliderStrip'),
   coeiroinkStatusDot: document.getElementById('coeiroinkStatusDot'),
   coeiroinkStatusText: document.getElementById('coeiroinkStatusText'),
+  coeiroinkWarningModal: document.getElementById('coeiroinkWarningModal'),
+  coeiroinkWarningTitle: document.getElementById('coeiroinkWarningTitle'),
+  coeiroinkWarningMessage: document.getElementById('coeiroinkWarningMessage'),
+  coeiroinkWarningFeedback: document.getElementById('coeiroinkWarningFeedback'),
+  coeiroinkWarningSpinner: document.getElementById('coeiroinkWarningSpinner'),
+  btnCoeiroinkRetry: document.getElementById('btnCoeiroinkRetry'),
+  btnCoeiroinkDismiss: document.getElementById('btnCoeiroinkDismiss'),
 };
 
 els.btnPlayIconPlay = els.btnPlay.querySelector('.icon-play');
