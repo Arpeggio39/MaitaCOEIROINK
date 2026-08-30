@@ -2,7 +2,7 @@ const path = require('path');
 const { app, BrowserWindow } = require('electron');
 const { installAppMenu } = require('./menu');
 const { registerAllIpcHandlers } = require('./ipc');
-const { initUpdater } = require('./updater');
+const { initUpdater, checkForUpdatesOnStartup } = require('./updater');
 
 registerAllIpcHandlers();
 
@@ -21,11 +21,15 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, '..', '..', 'renderer', 'index.html'));
+  win.once('ready-to-show', () => {
+    checkForUpdatesOnStartup();
+  });
+  return win;
 }
 
 app.whenReady().then(() => {
   installAppMenu();
-  initUpdater({ checkOnStartup: true });
+  initUpdater();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

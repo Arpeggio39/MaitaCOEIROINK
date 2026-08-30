@@ -135,3 +135,13 @@ jobs:
         run: npx electron-builder --win --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark release as latest
+        if: steps.check.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          gh release edit $tag --latest
+          Write-Host "Marked $tag as latest."
