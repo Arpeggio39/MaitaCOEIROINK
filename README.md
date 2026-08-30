@@ -10,7 +10,7 @@ COEIROINK で琵音マイタのナレーションを作るための Windows ア�
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
 | OpenMaita アプリ（Windows） | [ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `OpenMaita-Setup-{version}.exe` |
-| 琵音マイタ 音声パック | 同上の `bionmaita-{version}.zip` |
+| 琵音マイタ 音声パック | 同上の `bionmaita-1.0.0.zip`（常に固定） |
 
 最新の音声パックは [ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の **OpenMaita x.y.z** から取得できます（アプリと同じページにあります）。
 
@@ -64,11 +64,11 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 ### ③ 琵音マイタ 音声パックをダウンロード
 
-[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-1.0.0.zip`）。アプリと同じページにあります。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-1.0.0.zip`** をダウンロードします。アプリと同じページにあります。
 
 <img src="./docs/images/github-release-openmaita.png" alt="ダウンロードページから OpenMaita と音声パックを取得" width="800">
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.0/`）。
+ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っています。
 
 ### ④ speaker_info フォルダーにコピー
 
@@ -76,7 +76,7 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 <img src="./docs/images/image2.png" alt="speaker_info フォルダーを開く" width="800">
 
-先ほど GitHub からダウンロードして解凍した **`bionmaita-{version}`** フォルダーを、**`speaker_info` フォルダー内** に移動してください。
+先ほど GitHub からダウンロードして解凍した **`bionmaita-1.0.0`** フォルダーを、**`speaker_info` フォルダー内** に移動してください。
 
 ちなみに、元から「つくよみちゃん」というモデルもありますが、これは残してても消しても大丈夫です。
 
@@ -130,13 +130,13 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### ④ 琵音マイタ 音声パックをダウンロード
 
-[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-1.0.0.zip`）。アプリと同じページにあります。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-1.0.0.zip`** をダウンロードして展開してください。アプリと同じページにあります。
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.0/`）。
+ZIP を解凍すると、中に **`bionmaita-1.0.0`** フォルダーが入っています。
 
 ### ⑤ speaker_info にコピー
 
-次に、Finder サイドバーにある **アプリケーション** にある COEIROINKv2.app で、2 本指クリックしてメニューにある「パッケージの内容を表示」し、**`Contents/MacOS/speaker_info`** に **`bionmaita-{version}`** フォルダーを移行する。
+次に、Finder サイドバーにある **アプリケーション** にある COEIROINKv2.app で、2 本指クリックしてメニューにある「パッケージの内容を表示」し、**`Contents/MacOS/speaker_info`** に **`bionmaita-1.0.0`** フォルダーを移行する。
 
 <img src="./docs/images/image14.png" alt="COEIROINK.app のパッケージ内容を表示" width="800">
 
@@ -158,20 +158,20 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### バージョン管理
 
-OpenMaita アプリと音声パックは、**`package.json` の version** で統一管理します。
+OpenMaita アプリは **`package.json` の version** で管理します。音声パックは **常に `1.0.0` 固定** です。
 
 - **原則として Release は 0.1 刻み**（例: `1.0.0` → `1.1.0` → `1.2.0`）で上げます
 - 同じバージョンの Release が既にある状態で main に push すると、CI が自動で minor を 1 つ上げてからビルドします
 - `bionmaita/**` だけを変更した場合、アプリの Release 処理（exe ビルド）は起動しません
 - 音声パックの ZIP は、同じ `v*` タグの OpenMaita Release にアップロードされます
 - exe を公開したときに、その Release が GitHub の **Latest** に設定されます（自動更新の検知に必要）
-- アプリの Release には、毎回 **`bionmaita-{version}.zip`** も同梱されます
+- アプリの Release には、毎回 **`bionmaita-1.0.0.zip`** も同梱されます
 
 ### 音声パックの配布形式
 
 - リポジトリ内のフォルダ名は **`bionmaita/`**（バージョン番号なし）
-- バージョンは **`package.json`** と同じ値を使用
-- CI が Release 用 ZIP を **`bionmaita-{version}.zip`** として公開（中身のルートフォルダ名は `bionmaita-{version}/`）
+- 配布バージョンは **`1.0.0` 固定**（`scripts/voice-pack-version.cjs`）
+- CI が Release 用 ZIP を **`bionmaita-1.0.0.zip`** として公開（中身のルートフォルダ名は `bionmaita-1.0.0/`）
 - モデル重み（`.pth`）は Git LFS 管理
 
 ### ローカル開発
@@ -185,8 +185,8 @@ npm start
 
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
-| OpenMaita アプリ（exe） | main への push（`bionmaita/**` 以外） | `v1.0.0` → 次回 `v1.1.0`（Release名: `OpenMaita 1.1.0`、exe と音声パック ZIP を同時公開） |
-| bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | 同上の `v*` Release に ZIP を追加 |
+| OpenMaita アプリ（exe） | main への push（`bionmaita/**` 以外） | `v1.0.0` → 次回 `v1.1.0`（Release名: `OpenMaita 1.1.0`、exe と `bionmaita-1.0.0.zip` を同時公開） |
+| bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | 現在の `v*` Release に `bionmaita-1.0.0.zip` を追加・上書き |
 
 音声パックを手動リリースする場合は、GitHub Actions の **Release Voice Pack** ワークフローから実行します。既定では `bump: minor`（0.1 刻み）が選ばれます。同じバージョンの ZIP だけ差し替える場合は `bump: none` を選び、`force` で上書きアップロードできます。例外的に `patch` / `major` も選べます。
 

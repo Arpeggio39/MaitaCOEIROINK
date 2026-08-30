@@ -21,12 +21,20 @@ const indexSource = fs.readFileSync(
   'utf8',
 );
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const { VOICE_PACK_VERSION, voicePackArtifact } = require('../scripts/voice-pack-version.cjs');
 
-test('アプリと音声パックは package.json で統一バージョン管理する', () => {
+test('OpenMaita は package.json でバージョン管理する', () => {
   assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.match(electronWorkflow, /resolve-release-version\.cjs/);
-  assert.match(voicePackWorkflow, /resolve-release-version\.cjs/);
   assert.equal(fs.existsSync(path.join(root, 'bionmaita/version')), false);
+});
+
+test('音声パックは 1.0.0 固定で配布する', () => {
+  assert.equal(VOICE_PACK_VERSION, '1.0.0');
+  assert.equal(voicePackArtifact(), 'bionmaita-1.0.0.zip');
+  assert.match(electronWorkflow, /bionmaita-1\.0\.0\.zip/);
+  assert.match(voicePackWorkflow, /bionmaita-1\.0\.0\.zip/);
+  assert.match(fs.readFileSync(path.join(root, 'scripts/build-voice-pack.cjs'), 'utf8'), /voice-pack-version\.cjs/);
 });
 
 test('Release は原則 0.1 刻みで minor bump する', () => {
@@ -51,6 +59,7 @@ test('音声パックは OpenMaita と同じ v* Release にアップロードす
   assert.match(voicePackWorkflow, /gh release upload \"\$tag\"/);
   assert.match(voicePackWorkflow, /build-voice-pack\.cjs/);
   assert.doesNotMatch(voicePackWorkflow, /bionmaita-v/);
+  assert.match(voicePackWorkflow, /bionmaita\/ changed — rebuilding voice pack/);
 });
 
 test('アプリ Release では exe と音声パックを同時に公開する', () => {

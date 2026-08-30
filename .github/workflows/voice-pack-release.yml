@@ -62,8 +62,6 @@ jobs:
       - name: Resolve release version
         id: version
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
@@ -71,12 +69,9 @@ jobs:
             echo "Invalid package.json version: $version"
             exit 1
           fi
-          artifact="bionmaita-$version.zip"
-          args=(--artifact "$artifact")
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
-            args+=(--force)
-          fi
-          node scripts/resolve-release-version.cjs "${args[@]}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "bumped=false" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump
         if: steps.version.outputs.bumped == 'true' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none')
@@ -96,13 +91,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "bionmaita/ changed — rebuilding voice pack."
+            exit 0
+          fi
+          if [[ "${{ inputs.force }}" == "true" ]]; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Force rebuild requested."
             exit 0
           fi
           tag="${{ steps.version.outputs.tag }}"
-          artifact="bionmaita-${{ steps.version.outputs.version }}.zip"
+          artifact="bionmaita-1.0.0.zip"
           if ! gh release view "$tag" >/dev/null 2>&1; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Release $tag not found. Will build."
@@ -156,7 +156,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          artifact="$(node scripts/build-voice-pack.cjs "${{ steps.version.outputs.version }}")"
+          artifact="$(node scripts/build-voice-pack.cjs)"
           ls -lh "$artifact"
 
       - name: Upload voice pack to GitHub Release
@@ -167,5 +167,5 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          artifact="bionmaita-${{ steps.version.outputs.version }}.zip"
+          artifact="bionmaita-1.0.0.zip"
           gh release upload "$tag" "$artifact" --clobber
