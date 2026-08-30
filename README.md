@@ -1,6 +1,6 @@
-# MaitaCOEIROINK
+# OpenMaita
 
-琵音マイタ専用の COEIROINK API ラッパー（Electron）です。
+琵音マイタ専用の COEIROINK API ラッパー **OpenMaita**（Electron）です。
 
 COEIROINK エンジンと連携して、マイタのナレーション制作を行います。本リポジトリでは、アプリ本体に加えて **bionmaita 音声パック** も GitHub Releases から配布しています。
 
@@ -9,12 +9,12 @@ COEIROINK エンジンと連携して、マイタのナレーション制作を�
 | 項目 | 入手先 |
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
-| 琵音マイタ 音声パック | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `bionmaita-{version}.zip` |
-| OpenMaita アプリ（Windows） | [GitHub Releases（`v*`、表示名 `OpenMaita x.y.z`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) |
+| OpenMaita アプリ（Windows） | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `OpenMaita-Setup-{version}.exe` |
+| 琵音マイタ 音声パック | 同上の Release の `bionmaita-{version}.zip` |
 
 最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の **`OpenMaita x.y.z`** から `bionmaita-{version}.zip` をダウンロードしてください（アプリ exe と同じ Release に含まれます）。
 
-<img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
+<img src="./docs/images/github-release-openmaita.png" alt="GitHub Releases から OpenMaita と音声パックをダウンロード" width="800">
 
 ---
 
@@ -66,7 +66,7 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 [GitHub Releases](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-0.1.1.zip`）。OpenMaita アプリと同じ Release（`v*`）に含まれています。
 
-<img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
+<img src="./docs/images/github-release-openmaita.png" alt="GitHub Releases から OpenMaita と音声パックをダウンロード" width="800">
 
 ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
 
