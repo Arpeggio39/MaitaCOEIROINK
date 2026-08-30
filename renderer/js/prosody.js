@@ -25,7 +25,11 @@ import { showOperationError } from './coeiroink-warning.js';
 import { resolveMaitaStyleId } from './engine.js';
 import { schedulePersist } from './persist.js';
 import { prosodyRequestKey } from './prosody-request-key.mjs';
-import { hasProsodyPitchEditsState, pitchEditMask } from './prosody-edit-utils.mjs';
+import {
+  hasProsodyPitchEditsState,
+  pitchEditMask,
+  remapProsodyEntries,
+} from './prosody-edit-utils.mjs';
 
 /**
  * @param {import('./state.js').SegmentMora[][]} detail
@@ -75,22 +79,6 @@ export function prosodyDetailForApi(detail) {
   return detail.map((phrase) =>
     phrase.map(({ phoneme, hira, accent }) => ({ phoneme, hira, accent })),
   );
-}
-
-/**
- * @param {import('./state.js').SegmentProsody} src
- */
-export function cloneSegmentProsody(src) {
-  return {
-    text: src.text,
-    detail: cloneProsodyDetail(src.detail),
-    baseF0: src.baseF0 ? [...src.baseF0] : undefined,
-    baselinePitch: src.baselinePitch ? [...src.baselinePitch] : undefined,
-    moraWavRanges: src.moraWavRanges ? src.moraWavRanges.map((r) => ({ ...r })) : undefined,
-    f0TotalSamples: src.f0TotalSamples,
-    f0SpeedScale: src.f0SpeedScale,
-    pitchEditedByUser: src.pitchEditedByUser,
-  };
 }
 
 /**
@@ -479,22 +467,7 @@ export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
  */
 export function remapSentenceProsody(project, prevRanges, newRanges) {
   const oldMap = project.sentenceProsodyByKey || {};
-  /** @type {Record<string, import('./state.js').SegmentProsody>} */
-  const next = {};
-  const usedOldKeys = new Set();
-
-  for (const nr of newRanges) {
-    if (oldMap[nr.key] && oldMap[nr.key].text === nr.text) {
-      next[nr.key] = cloneSegmentProsody(oldMap[nr.key]);
-      continue;
-    }
-    const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
-    if (prev && oldMap[prev.key] && oldMap[prev.key].text === nr.text) {
-      next[nr.key] = cloneSegmentProsody(oldMap[prev.key]);
-      usedOldKeys.add(prev.key);
-    }
-  }
-  project.sentenceProsodyByKey = next;
+  project.sentenceProsodyByKey = remapProsodyEntries(oldMap, prevRanges, newRanges);
 }
 
 /**

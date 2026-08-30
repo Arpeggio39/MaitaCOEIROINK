@@ -13,7 +13,12 @@ import {
   playbackRangesForSelection,
   sentenceRangesFromText,
 } from '../renderer/js/segment-parser.mjs';
-import { hasPitchEdits, hasProsodyPitchEditsState, pitchEditMask } from '../renderer/js/prosody-edit-utils.mjs';
+import {
+  hasPitchEdits,
+  hasProsodyPitchEditsState,
+  pitchEditMask,
+  remapProsodyEntries,
+} from '../renderer/js/prosody-edit-utils.mjs';
 
 test('句読点・空白・改行で文章を順序どおりに区切る', () => {
   const text = 'こんにちは。 次です！\n最後';
@@ -84,4 +89,17 @@ test('手動ピッチ編集フラグがあれば baseline なしでも編集と�
   assert.equal(hasProsodyPitchEditsState(true, [6, 6, 6], undefined), true);
   assert.equal(hasProsodyPitchEditsState(false, [6, 6, 6], undefined), false);
   assert.equal(hasProsodyPitchEditsState(false, [8, 6, 6], undefined), false);
+});
+
+test('同じ文章の韻律はオーバーレイ再構築後も同じ参照を保つ', () => {
+  const entry = {
+    text: 'おはよう。',
+    detail: [[{ phoneme: 'o', hira: 'お', accent: 0, pitch: 6.2 }]],
+  };
+  const ranges = [{ key: 's0', text: 'おはよう。' }];
+  const remapped = remapProsodyEntries({ s0: entry }, ranges, ranges);
+
+  assert.equal(remapped.s0, entry);
+  entry.detail[0][0].pitch = 9;
+  assert.equal(remapped.s0.detail[0][0].pitch, 9);
 });
