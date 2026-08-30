@@ -46,3 +46,42 @@ export function hasProsodyPitchEditsState(pitchEditedByUser, pitches, baseline) 
   if (pitchEditedByUser) return true;
   return hasPitchEdits(pitches, baseline);
 }
+
+/**
+ * オーバーレイ再構築後も文章が継続する場合は、既存の韻律オブジェクトを保つ。
+ * スライダーはモーラの参照を保持するため、ここで複製すると以後の編集が
+ * 再生・保存側のデータに反映されなくなる。
+ *
+ * @template T
+ * @param {Record<string, T & { text: string }>} oldMap
+ * @param {{ key: string, text: string }[]} previousRanges
+ * @param {{ key: string, text: string }[]} nextRanges
+ * @returns {Record<string, T & { text: string }>}
+ */
+export function remapProsodyEntries(oldMap, previousRanges, nextRanges) {
+  /** @type {Record<string, T & { text: string }>} */
+  const next = {};
+  const usedOldKeys = new Set();
+
+  for (const range of nextRanges) {
+    const sameKey = oldMap[range.key];
+    if (sameKey?.text === range.text) {
+      next[range.key] = sameKey;
+      usedOldKeys.add(range.key);
+      continue;
+    }
+
+    const previous = previousRanges.find(
+      (candidate) =>
+        candidate.text === range.text &&
+        !usedOldKeys.has(candidate.key) &&
+        oldMap[candidate.key]?.text === range.text,
+    );
+    if (previous) {
+      next[range.key] = oldMap[previous.key];
+      usedOldKeys.add(previous.key);
+    }
+  }
+
+  return next;
+}
