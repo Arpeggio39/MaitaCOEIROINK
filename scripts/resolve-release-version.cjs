@@ -19,22 +19,6 @@ function releaseExists(tag) {
   }
 }
 
-function artifactExists(tag, artifact) {
-  try {
-    const out = execSync(`gh release view ${tag} --json assets --jq ".assets[].name"`, {
-      encoding: 'utf8',
-      env: process.env,
-    });
-    return out
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .includes(artifact);
-  } catch {
-    return false;
-  }
-}
-
 function writeOutput(keyValues) {
   const file = process.env.GITHUB_OUTPUT;
   if (!file) {
@@ -51,8 +35,6 @@ function writeOutput(keyValues) {
 function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force');
-  const artifactIndex = args.indexOf('--artifact');
-  const artifact = artifactIndex >= 0 ? args[artifactIndex + 1] : null;
 
   let version = readVersion();
   let bumped = false;
@@ -60,12 +42,6 @@ function main() {
 
   if (force) {
     skip = false;
-  } else if (artifact) {
-    const tag = `v${version}`;
-    if (releaseExists(tag) && artifactExists(tag, artifact)) {
-      version = bumpVersion('minor', root);
-      bumped = true;
-    }
   } else if (releaseExists(`v${version}`)) {
     version = bumpVersion('minor', root);
     bumped = true;
@@ -76,7 +52,6 @@ function main() {
     tag: `v${version}`,
     bumped: String(bumped),
     skip: String(skip),
-    ...(artifact ? { artifact: `bionmaita-${version}.zip` } : {}),
   });
 }
 
