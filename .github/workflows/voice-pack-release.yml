@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'bionmaita/version を自動で上げる（none なら現在値で Release のみ）'
+        description: 'package.json の version を自動で上げる（none なら現在値で Release のみ）'
         required: false
         type: choice
         default: none
@@ -19,7 +19,7 @@ on:
           - minor
           - major
       force:
-        description: '既存 Release があっても再ビルドする'
+        description: '既存のアセットがあっても再ビルドする'
         required: false
         type: boolean
         default: false
@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   bump:
-    name: Bump voice pack version
+    name: Bump app version
     if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
     runs-on: ubuntu-latest
     permissions:
@@ -39,27 +39,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Bump version
         shell: bash
         run: |
           set -euo pipefail
-          version="$(tr -d '[:space:]' < bionmaita/version)"
-          IFS='.' read -r major minor patch <<< "$version"
-          case "${{ inputs.bump }}" in
-            patch) patch=$((patch + 1)) ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            *)
-              echo "Unknown bump type: ${{ inputs.bump }}"
-              exit 1
-              ;;
-          esac
-          new_version="${major}.${minor}.${patch}"
-          echo "$new_version" > bionmaita/version
+          npm version "${{ inputs.bump }}" --no-git-tag-version
+          new_version="$(node -p "require('./package.json').version")"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bionmaita/version
-          git commit -m "chore(bionmaita): bump version to ${new_version}"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${new_version}"
           git push origin HEAD:main
 
   release:
@@ -75,6 +69,11 @@ jobs:
         with:
           lfs: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Setup Git LFS
         run: git lfs install
 
@@ -86,17 +85,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(tr -d '[:space:]' < bionmaita/version)"
+          version="$(node -p "require('./package.json').version")"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid bionmaita/version: $version"
+            echo "Invalid package.json version: $version"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=bionmaita-v$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "artifact=bionmaita-$version.zip" >> "$GITHUB_OUTPUT"
-          echo "Voice pack version: $version"
+          echo "Voice pack version: $version (OpenMaita unified)"
 
-      - name: Skip if release already exists
+      - name: Skip if artifact already exists
         id: check
         shell: bash
         env:
@@ -109,12 +108,18 @@ jobs:
             exit 0
           fi
           tag="${{ steps.version.outputs.tag }}"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Release $tag already exists. Skipping."
-          else
+          artifact="${{ steps.version.outputs.artifact }}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Release $tag not found. Will build."
+            exit 0
+          fi
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -Fxq "$artifact"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Artifact $artifact already exists on $tag. Skipping."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Release $tag exists but $artifact is missing. Will build."
           fi
 
       - name: Ensure release tag exists
@@ -147,8 +152,8 @@ jobs:
             exit 0
           fi
           gh release create "$tag" \
-            --title "bionmaita $version" \
-            --notes "COEIROINK 音声パック bionmaita $version" \
+            --title "OpenMaita $version" \
+            --notes "OpenMaita $version（音声パック）" \
             --verify-tag \
             --latest=false
 
@@ -162,9 +167,7 @@ jobs:
           staging="dist-voice-pack/bionmaita-$version"
           rm -rf dist-voice-pack
           mkdir -p "$staging"
-          rsync -a \
-            --exclude 'version' \
-            bionmaita/ "$staging/"
+          rsync -a bionmaita/ "$staging/"
           (cd dist-voice-pack && zip -r "../$artifact" "bionmaita-$version")
           rm -rf dist-voice-pack
           ls -lh "$artifact"

@@ -9,10 +9,10 @@ COEIROINK エンジンと連携して、マイタのナレーション制作を�
 | 項目 | 入手先 |
 |------|--------|
 | COEIROINK 本体 | [https://coeiroink.com/download](https://coeiroink.com/download) |
-| 琵音マイタ 音声パック | [GitHub Releases（`bionmaita-v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) |
+| 琵音マイタ 音声パック | [GitHub Releases（`v*`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の `bionmaita-{version}.zip` |
 | OpenMaita アプリ（Windows） | [GitHub Releases（`v*`、表示名 `OpenMaita x.y.z`）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) |
 
-最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) の **`bionmaita-v*`** から `bionmaita-{version}.zip` をダウンロードしてください。
+最新の音声パックは [Releases ページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) の **`OpenMaita x.y.z`** から `bionmaita-{version}.zip` をダウンロードしてください（アプリ exe と同じ Release に含まれます）。
 
 <img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
 
@@ -64,11 +64,11 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 ### ③ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases（bionmaita-v*）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-1.0.1.zip`）。
+[GitHub Releases](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-0.1.1.zip`）。OpenMaita アプリと同じ Release（`v*`）に含まれています。
 
 <img src="./docs/images/github-release-bionmaita.png" alt="GitHub Releases から bionmaita-1.0.0.zip をダウンロード" width="800">
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.1/`）。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
 
 ### ④ speaker_info フォルダーにコピー
 
@@ -130,9 +130,9 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### ④ 琵音マイタ 音声パックをダウンロード
 
-[GitHub Releases（bionmaita-v*）](https://github.com/Arpeggio39/MaitaCOEIROINK/releases?q=bionmaita) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-1.0.1.zip`）。
+[GitHub Releases](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-0.1.1.zip`）。OpenMaita アプリと同じ Release（`v*`）に含まれています。
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.1/`）。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
 
 ### ⑤ speaker_info にコピー
 
@@ -158,17 +158,16 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### バージョン管理
 
-OpenMaita アプリと音声パックは、それぞれ独立したバージョンを持ちます。
+OpenMaita アプリと音声パックは、**`package.json` の version** で統一管理します。
 
-- OpenMaita アプリのバージョンは **`package.json`** で管理
-- 音声パックのバージョンは **`bionmaita/version`** で管理
-- `bionmaita/**` だけを変更した場合、アプリのRelease処理は起動しません
-- 音声パックのReleaseはGitHub上の「Latest」にせず、OpenMaitaアプリの自動更新先と分離します
+- `bionmaita/**` だけを変更した場合、アプリの Release 処理（exe ビルド）は起動しません
+- 音声パックの ZIP は、同じ `v*` タグの OpenMaita Release にアップロードされます
+- exe を公開したときに、その Release が GitHub の **Latest** に設定されます（自動更新の検知に必要）
 
 ### 音声パックの配布形式
 
 - リポジトリ内のフォルダ名は **`bionmaita/`**（バージョン番号なし）
-- バージョンは **`bionmaita/version`** で管理
+- バージョンは **`package.json`** と同じ値を使用
 - CI が Release 用 ZIP を **`bionmaita-{version}.zip`** として公開（中身のルートフォルダ名は `bionmaita-{version}/`）
 - モデル重み（`.pth`）は Git LFS 管理
 
@@ -183,9 +182,9 @@ npm start
 
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
-| OpenMaita アプリ | `package.json` の version を更新して main に push | `v0.1.1`（Release名: `OpenMaita 0.1.1`） |
-| bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | `bionmaita-v1.0.1` |
+| OpenMaita アプリ（exe） | `package.json` の version を更新して main に push | `v0.1.1`（Release名: `OpenMaita 0.1.1`） |
+| bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | 同上の `v*` Release に ZIP を追加 |
 
-音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選んで実行できます。
+音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選ぶと `package.json` が更新されます。音声パックだけ差し替える場合は `bump: none` で現在のバージョンの Release に上書きアップロードできます。
 
 Git LFS を使う場合は、初回 push 前に `git lfs install` を実行してください。

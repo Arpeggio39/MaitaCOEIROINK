@@ -8,8 +8,12 @@ function getParentWindow() {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
 }
 
-function showMessageBox(options) {
-  const parent = getParentWindow();
+async function showMessageBox(options) {
+  let parent = getParentWindow();
+  if (!parent) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    parent = getParentWindow();
+  }
   return dialog.showMessageBox(parent ?? undefined, options);
 }
 
@@ -81,14 +85,14 @@ function registerUpdaterEvents() {
   });
 }
 
-function initUpdater({ checkOnStartup = true } = {}) {
+function initUpdater() {
   if (!isUpdaterEnabled()) return;
-
   registerUpdaterEvents();
+}
 
-  if (checkOnStartup) {
-    autoUpdater.checkForUpdates().catch(() => {});
-  }
+function checkForUpdatesOnStartup() {
+  if (!isUpdaterEnabled()) return;
+  autoUpdater.checkForUpdates().catch(() => {});
 }
 
 async function checkForUpdatesManually() {
@@ -121,4 +125,9 @@ async function checkForUpdatesManually() {
   }
 }
 
-module.exports = { initUpdater, checkForUpdatesManually, isUpdaterEnabled };
+module.exports = {
+  initUpdater,
+  checkForUpdatesOnStartup,
+  checkForUpdatesManually,
+  isUpdaterEnabled,
+};
