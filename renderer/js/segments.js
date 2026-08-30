@@ -6,6 +6,7 @@ import {
   sentenceRangesFromText,
   sentencesFromText,
 } from './segment-parser.mjs';
+import { remapEntriesByStableText } from './prosody-edit-utils.mjs';
 
 export { findRangeAtCursor, isSegmentPunctuation, sentenceRangesFromText, sentencesFromText };
 
@@ -34,22 +35,10 @@ export function migrateSentenceParamsForProject(project) {
  */
 export function remapSentenceParams(project, prevRanges, newRanges) {
   const oldMap = project.sentenceParamsByKey || {};
-  /** @type {Record<string, import('./state.js').ParamSet>} */
-  const next = {};
-  const usedOldKeys = new Set();
-
-  for (const nr of newRanges) {
-    if (oldMap[nr.key]) {
-      next[nr.key] = cloneParams(oldMap[nr.key]);
-      continue;
-    }
-    const prev = prevRanges.find((pr) => pr.text === nr.text && !usedOldKeys.has(pr.key));
-    if (prev && oldMap[prev.key]) {
-      next[nr.key] = cloneParams(oldMap[prev.key]);
-      usedOldKeys.add(prev.key);
-    }
-  }
-  project.sentenceParamsByKey = next;
+  const remapped = remapEntriesByStableText(oldMap, prevRanges, newRanges);
+  project.sentenceParamsByKey = Object.fromEntries(
+    Object.entries(remapped).map(([key, params]) => [key, cloneParams(params)]),
+  );
 }
 
 /**

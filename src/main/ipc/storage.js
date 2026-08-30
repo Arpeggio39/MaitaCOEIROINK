@@ -1,40 +1,40 @@
-const fs = require('fs');
-const path = require('path');
 const { ipcMain } = require('electron');
 const { projectsPath, appSettingsPath } = require('../paths');
+const { readJsonWithBackup, writeJsonAtomic } = require('../atomic-json');
 
 function registerStorageIpc() {
   ipcMain.handle('storage:loadProjects', () => {
     try {
-      const p = projectsPath();
-      if (!fs.existsSync(p)) return null;
-      return JSON.parse(fs.readFileSync(p, 'utf8'));
-    } catch {
-      return null;
+      return readJsonWithBackup(projectsPath());
+    } catch (error) {
+      return { __openMaitaLoadError: error.message };
     }
   });
 
   ipcMain.handle('storage:saveProjects', (_e, data) => {
-    const p = projectsPath();
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+    writeJsonAtomic(projectsPath(), data);
     return true;
+  });
+
+  ipcMain.on('storage:saveProjectsSync', (event, data) => {
+    try {
+      writeJsonAtomic(projectsPath(), data);
+      event.returnValue = { ok: true };
+    } catch (error) {
+      event.returnValue = { ok: false, error: error.message };
+    }
   });
 
   ipcMain.handle('storage:loadAppSettings', () => {
     try {
-      const p = appSettingsPath();
-      if (!fs.existsSync(p)) return null;
-      return JSON.parse(fs.readFileSync(p, 'utf8'));
+      return readJsonWithBackup(appSettingsPath());
     } catch {
       return null;
     }
   });
 
   ipcMain.handle('storage:saveAppSettings', (_e, data) => {
-    const p = appSettingsPath();
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
+    writeJsonAtomic(appSettingsPath(), data);
     return true;
   });
 }

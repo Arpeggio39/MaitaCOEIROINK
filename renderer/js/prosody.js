@@ -11,7 +11,7 @@ import {
   MORA_PITCH_MAX,
   MORA_PITCH_MIN,
 } from './constants.js';
-import { getSentenceParams } from './segments.js';
+import { getSentenceParams, sentenceRangesFromText } from './segments.js';
 import {
   activeSentenceKey,
   prosodyFetchGeneration,
@@ -29,6 +29,7 @@ import {
   hasProsodyPitchEditsState,
   pitchEditMask,
   remapProsodyEntries,
+  shouldReconcileDefaultPitches,
 } from './prosody-edit-utils.mjs';
 
 /**
@@ -263,83 +264,92 @@ async function fetchEstimateProsodyFromKana(kana) {
  * @param {string} key
  */
 export async function reestimateProsodyFromKana(project, key) {
-  const entry = project.sentenceProsodyByKey?.[key];
   const requestKey = prosodyRequestKey(project, key);
-  if (
-    !entry?.detail?.length ||
-    prosodyFetchInFlight.has(requestKey) ||
-    kanaReestimateInFlight.has(requestKey)
-  ) {
-    return;
+  if (prosodyFetchInFlight.has(requestKey)) {
+    await prosodyFetchPromises.get(requestKey);
   }
+  if (kanaReestimateInFlight.has(requestKey)) return kanaReestimateInFlight.get(requestKey);
+  const initialEntry = project.sentenceProsodyByKey?.[key];
+  if (!initialEntry?.detail?.length) return;
+  if (!initialEntry.detail.flat().some((m) => (m.hira || '').trim())) return;
 
-  const kana = entry.detail.flat().map((m) => m.hira || '').join('').trim();
-  if (!kana) return;
-
-  kanaReestimateInFlight.add(requestKey);
-  if (activeSentenceKey === key) notifyIntonationUi();
-
-  const hadUserEdits = hasProsodyPitchEdits(entry);
-  const oldPitches = hadUserEdits ? entry.detail.flat().map((m) => getMoraPitch(m)) : null;
-
-  try {
-    const newDetail = await fetchEstimateProsodyFromKana(kana);
-    applyDefaultMoraPitches(newDetail);
-    if (oldPitches) {
-      const flatNew = newDetail.flat();
-      for (let i = 0; i < flatNew.length; i += 1) {
-        if (i < oldPitches.length) flatNew[i].pitch = oldPitches[i];
-      }
-    }
-    entry.detail = newDetail;
-    if (hadUserEdits) entry.pitchEditedByUser = true;
-    try {
-      await fetchPredictF0ForProsody(
-        entry.text,
-        entry.detail,
-        entry,
-        getSentenceParams(project, key).speedScale,
-      );
-      if (oldPitches) {
-        const flatAfter = entry.detail.flat();
-        for (let i = 0; i < flatAfter.length; i += 1) {
-          if (i < oldPitches.length) flatAfter[i].pitch = oldPitches[i];
-        }
-      }
-    } catch (_) {
-      clearF0Metadata(entry);
-    }
-    schedulePersist();
-  } catch (e) {
-    if (activeSentenceKey === key) {
-      showOperationError(e);
-    }
-  } finally {
-    kanaReestimateInFlight.delete(requestKey);
+  const run = (async () => {
     if (activeSentenceKey === key) notifyIntonationUi();
-  }
+    try {
+      do {
+        kanaReestimatePending.delete(requestKey);
+        const entry = project.sentenceProsodyByKey?.[key];
+        if (!entry?.detail?.length) return;
+        const kana = entry.detail.flat().map((m) => m.hira || '').join('').trim();
+        if (!kana) return;
+
+        const temporary = { text: entry.text, detail: await fetchEstimateProsodyFromKana(kana) };
+        applyDefaultMoraPitches(temporary.detail);
+        try {
+          await fetchPredictF0ForProsody(
+            temporary.text,
+            temporary.detail,
+            temporary,
+            getSentenceParams(project, key).speedScale,
+          );
+        } catch (_) {
+          clearF0Metadata(temporary);
+        }
+
+        const current = project.sentenceProsodyByKey?.[key];
+        if (!current?.detail?.length) return;
+        const latestKana = current.detail.flat().map((m) => m.hira || '').join('').trim();
+        if (latestKana !== kana) continue;
+
+        const preservePitches = hasProsodyPitchEdits(current)
+          ? current.detail.flat().map((m) => getMoraPitch(m))
+          : null;
+        if (preservePitches) {
+          const flat = temporary.detail.flat();
+          for (let i = 0; i < Math.min(flat.length, preservePitches.length); i += 1) {
+            flat[i].pitch = preservePitches[i];
+          }
+          temporary.pitchEditedByUser = true;
+        }
+
+        for (const name of ['baseF0', 'baselinePitch', 'moraWavRanges', 'f0TotalSamples', 'f0SpeedScale', 'pitchEditedByUser']) {
+          delete current[name];
+        }
+        Object.assign(current, temporary);
+        schedulePersist();
+      } while (kanaReestimatePending.has(requestKey));
+    } catch (e) {
+      if (activeSentenceKey === key) showOperationError(e);
+    } finally {
+      kanaReestimateInFlight.delete(requestKey);
+      if (activeSentenceKey === key) notifyIntonationUi();
+    }
+  })();
+  kanaReestimateInFlight.set(requestKey, run);
+  return run;
 }
 
-/** @type {ReturnType<typeof setTimeout> | null} */
-let kanaReestimateTimer = null;
-/** @type {{ project: import('./state.js').Project, key: string } | null} */
-let kanaReestimatePending = null;
-/** @type {Set<string>} */
-const kanaReestimateInFlight = new Set();
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const kanaReestimateTimers = new Map();
+/** @type {Map<string, { project: import('./state.js').Project, key: string }>} */
+const kanaReestimatePending = new Map();
+/** @type {Map<string, Promise<void>>} */
+const kanaReestimateInFlight = new Map();
 
 /**
  * @param {import('./state.js').Project} project
  * @param {string} key
  */
 export function scheduleProsodyKanaReestimate(project, key) {
-  kanaReestimatePending = { project, key };
-  clearTimeout(kanaReestimateTimer);
-  kanaReestimateTimer = setTimeout(() => {
-    const pending = kanaReestimatePending;
-    kanaReestimatePending = null;
+  const requestKey = prosodyRequestKey(project, key);
+  kanaReestimatePending.set(requestKey, { project, key });
+  clearTimeout(kanaReestimateTimers.get(requestKey));
+  kanaReestimateTimers.set(requestKey, setTimeout(() => {
+    kanaReestimateTimers.delete(requestKey);
+    const pending = kanaReestimatePending.get(requestKey);
     if (!pending) return;
     void reestimateProsodyFromKana(pending.project, pending.key);
-  }, 420);
+  }, 420));
 }
 
 /**
@@ -348,7 +358,7 @@ export function scheduleProsodyKanaReestimate(project, key) {
  * @param {import('./state.js').SegmentProsody} entry
  * @param {number} [speedScale]
  */
-async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
+async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1, signal) {
   const initialPitches = detail.flat().map((m) => getMoraPitch(m));
   const previousBaseline = entry.baselinePitch ? [...entry.baselinePitch] : undefined;
   const styleId = await resolveMaitaStyleId();
@@ -364,6 +374,7 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
         prosodyDetail: prosodyDetailForApi(detail),
         speedScale,
       })),
+      signal,
     },
     120000,
   );
@@ -380,6 +391,7 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(f0Payload),
+      signal,
     },
     60000,
   );
@@ -417,16 +429,21 @@ async function fetchPredictF0ForProsody(text, detail, entry, speedScale = 1) {
  * @param {number} [speedScale]
  */
 export function reconcileDefaultPitchesWithBaseline(prosody) {
+  if (prosody.pitchEditedByUser) return;
   const baseline = prosody.baselinePitch;
   const flat = prosody.detail?.flat() ?? [];
-  if (!baseline?.length) return;
-  if (!flat.every((m) => getMoraPitch(m) === MORA_PITCH_DEFAULT)) return;
+  if (!shouldReconcileDefaultPitches(
+    prosody.pitchEditedByUser,
+    flat.map((m) => getMoraPitch(m)),
+    baseline,
+    MORA_PITCH_DEFAULT,
+  )) return;
   for (let i = 0; i < Math.min(flat.length, baseline.length); i += 1) {
     if (Number.isFinite(baseline[i])) flat[i].pitch = baseline[i];
   }
 }
 
-export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
+export async function ensureProsodyF0Metadata(text, entry, speedScale = 1, signal) {
   const speedChanged = entry.f0SpeedScale != null && entry.f0SpeedScale !== speedScale;
   if (
     !speedChanged &&
@@ -442,7 +459,7 @@ export async function ensureProsodyF0Metadata(text, entry, speedScale = 1) {
   const savedPitches =
     speedChanged || !hadUserEdits ? null : entry.detail.flat().map((m) => getMoraPitch(m));
   try {
-    await fetchPredictF0ForProsody(text, entry.detail, entry, speedScale);
+    await fetchPredictF0ForProsody(text, entry.detail, entry, speedScale, signal);
     if (savedPitches) {
       const flat = entry.detail.flat();
       for (let i = 0; i < flat.length; i += 1) {
@@ -620,4 +637,12 @@ export function scheduleProsodyForRanges(project, ranges) {
       }
     }
   }, 420));
+}
+
+export function invalidateAllProsodyAfterDictionaryChange() {
+  for (const project of appState.projects) project.sentenceProsodyByKey = {};
+  const project = appState.activeProject();
+  if (project) scheduleProsodyForRanges(project, sentenceRangesFromText(project.text || ''));
+  schedulePersist();
+  notifyIntonationUi();
 }

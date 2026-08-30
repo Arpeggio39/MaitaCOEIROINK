@@ -1,7 +1,7 @@
-const fs = require('fs');
 const path = require('path');
 const { ipcMain } = require('electron');
 const { dictionaryPath } = require('../paths');
+const { readJsonWithBackup, writeJsonAtomic } = require('../atomic-json');
 
 function defaultDictionaryPath() {
   return path.join(__dirname, '../../renderer/default-dictionary.json');
@@ -9,8 +9,7 @@ function defaultDictionaryPath() {
 
 function readDictionaryFile(filePath) {
   try {
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return readJsonWithBackup(filePath);
   } catch {
     return null;
   }
@@ -23,15 +22,14 @@ function loadBundledDefaultDictionary() {
 }
 
 function writeDictionaryFile(filePath, data) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  writeJsonAtomic(filePath, data);
 }
 
 function registerDictionaryIpc() {
   ipcMain.handle('dictionary:load', () => {
     const p = dictionaryPath();
     const existing = readDictionaryFile(p);
-    if (existing && Array.isArray(existing.dictionaryWords) && existing.dictionaryWords.length > 0) {
+    if (existing && Array.isArray(existing.dictionaryWords)) {
       return existing;
     }
     const defaults = loadBundledDefaultDictionary();

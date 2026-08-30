@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('maita', {
   loadProjects: () => ipcRenderer.invoke('storage:loadProjects'),
   saveProjects: (data) => ipcRenderer.invoke('storage:saveProjects', data),
+  saveProjectsSync: (data) => ipcRenderer.sendSync('storage:saveProjectsSync', data),
   loadAppSettings: () => ipcRenderer.invoke('storage:loadAppSettings'),
   saveAppSettings: (data) => ipcRenderer.invoke('storage:saveAppSettings', data),
   saveWavDialog: (defaultName) => ipcRenderer.invoke('dialog:saveWav', defaultName),

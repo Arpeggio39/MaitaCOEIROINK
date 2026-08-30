@@ -7,6 +7,10 @@ const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'renderer/index.html'), 'utf8');
 const dom = fs.readFileSync(path.join(root, 'renderer/js/dom.js'), 'utf8');
 const audio = fs.readFileSync(path.join(root, 'renderer/js/audio.js'), 'utf8');
+const main = fs.readFileSync(path.join(root, 'src/main/index.js'), 'utf8');
+const rendererMain = fs.readFileSync(path.join(root, 'renderer/js/main.js'), 'utf8');
+const persist = fs.readFileSync(path.join(root, 'renderer/js/persist.js'), 'utf8');
+const dictionaryIpc = fs.readFileSync(path.join(root, 'src/main/ipc/dictionary.js'), 'utf8');
 const rendererScripts = fs
   .readdirSync(path.join(root, 'renderer/js'))
   .filter((name) => name.endsWith('.js') || name.endsWith('.mjs'))
@@ -45,4 +49,24 @@ test('手動書き出しは固定フォルダーとtxt同時保存を適用す�
 test('再生ボタンは選択中の部分を優先することを案内する', () => {
   assert.match(html, /選択中の部分を再生（未選択時は全文）/);
   assert.match(audio, /playbackRangesForSelection\(allRanges, activeSentenceKey\)/);
+});
+
+test('合成中の再生を停止でき、プロジェクト移動時にもキャンセルする', () => {
+  assert.match(audio, /currentSynthesisController/);
+  assert.match(audio, /controller\.signal/);
+  assert.doesNotMatch(audio, /btnPlay\.disabled = true/);
+});
+
+test('終了時は待機中のプロジェクト保存を同期フラッシュする', () => {
+  assert.match(rendererMain, /beforeunload[\s\S]*flushProjectsSync/);
+  assert.match(persist, /syncUiBeforeSave\?\.\(\)[\s\S]*saveProjectsSync/);
+});
+
+test('二重起動を防ぎ、既存ウィンドウをフォーカスする', () => {
+  assert.match(main, /requestSingleInstanceLock/);
+  assert.match(main, /second-instance[\s\S]*\.focus\(\)/);
+});
+
+test('空のユーザー辞書も有効な保存状態として扱う', () => {
+  assert.doesNotMatch(dictionaryIpc, /dictionaryWords\.length > 0/);
 });

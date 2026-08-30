@@ -12,6 +12,7 @@ import {
   setActiveId,
   setActiveSentenceKey,
   setProjects,
+  cancelPlayback,
 } from './state.js';
 import { showToast } from './utils.js';
 import { schedulePersist, persistProjects } from './persist.js';
@@ -113,15 +114,15 @@ export function migrateProjects(list) {
 /** @type {(() => void) | null} */
 let editorHooks = null;
 
-/** @param {{ saveActiveSegmentParams: () => void, renderSegmentOverlay: () => void, updateSegmentPanelsVisibility: () => void }} hooks */
+/** @param {{ saveActiveSegmentParams: (options?: { persist?: boolean }) => void, renderSegmentOverlay: () => void, updateSegmentPanelsVisibility: () => void }} hooks */
 export function setEditorHooks(hooks) {
   editorHooks = hooks;
 }
 
-export function syncActiveProjectFromUi() {
+export function syncActiveProjectFromUi({ persist = true } = {}) {
   const p = activeProject();
   if (!p) return;
-  if (activeSentenceKey != null) editorHooks?.saveActiveSegmentParams();
+  if (activeSentenceKey != null) editorHooks?.saveActiveSegmentParams({ persist });
   p.text = els.editor.value;
   syncTitleFromTextIfAuto(p);
   renderProjectTitleDisplay();
@@ -173,6 +174,7 @@ export async function deleteProject(id) {
   setProjects(projects.filter((p) => p.id !== id));
 
   if (wasActive) {
+    cancelPlayback?.();
     setActiveId(projects[0].id);
     selectProject(activeId);
   } else {
@@ -183,7 +185,7 @@ export async function deleteProject(id) {
 
 export function selectProject(id) {
   if (activeId !== id) {
-    if (activeSentenceKey != null) editorHooks?.saveActiveSegmentParams();
+    cancelPlayback?.();
     syncActiveProjectFromUi();
   }
   setActiveId(id);
@@ -201,6 +203,7 @@ export function selectProject(id) {
 }
 
 export function newProject() {
+  cancelPlayback?.();
   syncActiveProjectFromUi();
   const now = new Date().toISOString();
   /** @type {import('./state.js').Project} */

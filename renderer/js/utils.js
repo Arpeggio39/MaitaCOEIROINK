@@ -8,8 +8,15 @@ import { els } from './dom.js';
  */
 export function fetchWithTimeout(url, init = {}, ms = 8000) {
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(id));
+  const externalSignal = init.signal;
+  const abortFromExternal = () => ctrl.abort(externalSignal?.reason);
+  if (externalSignal?.aborted) abortFromExternal();
+  else externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
+  const id = setTimeout(() => ctrl.abort(new DOMException('Timed out', 'TimeoutError')), ms);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => {
+    clearTimeout(id);
+    externalSignal?.removeEventListener('abort', abortFromExternal);
+  });
 }
 
 export function coerceSampleRate(value) {

@@ -143,11 +143,13 @@ async function synthesizeLine(
   paramsOverride,
   prosodyOverride = null,
   outputSamplingRate = PLAYBACK_SAMPLE_RATE,
+  signal,
 ) {
+  signal?.throwIfAborted();
   const styleId = await resolveMaitaStyleId();
   const params = paramsOverride ?? snapshotParamsFromControls(segmentParamControls);
   if (prosodyOverride?.detail?.length) {
-    await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale);
+    await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale, signal);
   }
   const detail = prosodyOverride?.detail?.length ? prosodyDetailForApi(prosodyOverride.detail) : [];
   let adjustedF0 = [];
@@ -174,6 +176,7 @@ async function synthesizeLine(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
       body: JSON.stringify(body),
+      signal,
     },
     180000,
   );
@@ -184,7 +187,7 @@ async function synthesizeLine(
   return res.arrayBuffer();
 }
 
-async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE) {
+async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal) {
   saveActiveSegmentParams();
   const p = activeProject();
   const allRanges = sentenceRangesFromText(els.editor.value);
@@ -195,13 +198,15 @@ async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE)
   /** @type {ArrayBuffer[]} */
   const parts = [];
   for (const r of ranges) {
+    signal?.throwIfAborted();
     const params = getSentenceParams(p, r.key);
     let prosody = getSegmentProsody(p, r.key);
     if (!prosody || prosody.text !== r.text.trim()) {
       await ensureSegmentProsody(p, r.key, r.text);
+      signal?.throwIfAborted();
       prosody = getSegmentProsody(p, r.key);
     }
-    const wav = await synthesizeLine(r.text, params, prosody, outputSamplingRate);
+    const wav = await synthesizeLine(r.text, params, prosody, outputSamplingRate, signal);
     parts.push(wav);
   }
   return concatWavBuffers(parts);
@@ -285,6 +290,11 @@ function cleanupPlaybackNatural() {
 }
 
 export function stopPlayback() {
+  appState.nextPlaybackGeneration();
+  if (appState.currentSynthesisController) {
+    appState.currentSynthesisController.abort();
+    appState.setCurrentSynthesisController(null);
+  }
   stopWaveformAnimation();
   setPlaybackUi(false);
   if (appState.currentAudio) {
@@ -308,7 +318,7 @@ function isAudioPlaying() {
 }
 
 export async function togglePlayback() {
-  if (isAudioPlaying()) {
+  if (isAudioPlaying() || appState.currentSynthesisController) {
     stopPlayback();
     return;
   }
@@ -316,11 +326,14 @@ export async function togglePlayback() {
 }
 
 async function playAudio() {
-  els.btnPlay.disabled = true;
+  stopPlayback();
+  const generation = appState.nextPlaybackGeneration();
+  const controller = new AbortController();
+  appState.setCurrentSynthesisController(controller);
+  setPlaybackUi(true);
   try {
-    stopPlayback();
-
-    const buf = await buildPlaybackUtterance(PLAYBACK_SAMPLE_RATE);
+    const buf = await buildPlaybackUtterance(PLAYBACK_SAMPLE_RATE, controller.signal);
+    if (controller.signal.aborted || appState.playbackGeneration !== generation) return;
     const blob = new Blob([buf], { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
     appState.setCurrentBlobUrl(url);
@@ -336,11 +349,15 @@ async function playAudio() {
     startWaveformAnimation();
   } catch (e) {
     stopPlayback();
-    showOperationError(e);
+    if (e?.name !== 'AbortError') showOperationError(e);
   } finally {
-    els.btnPlay.disabled = false;
+    if (appState.currentSynthesisController === controller) {
+      appState.setCurrentSynthesisController(null);
+    }
   }
 }
+
+appState.setCancelPlayback(stopPlayback);
 
 export function openExportChoiceModal() {
   els.btnExportSelected.disabled = activeSentenceKey == null;

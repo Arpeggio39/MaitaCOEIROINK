@@ -54,6 +54,12 @@ export let currentBlobUrl = null;
 export let waveformRaf = null;
 /** @type {number[]} */
 export let waveformPhases = [];
+/** @type {AbortController | null} */
+export let currentSynthesisController = null;
+/** @type {number} */
+export let playbackGeneration = 0;
+/** @type {(() => void) | null} */
+export let cancelPlayback = null;
 
 /** UI 更新コールバック（循環 import 回避） */
 /** @type {(() => void) | null} */
@@ -129,6 +135,19 @@ export function setWaveformRaf(raf) {
 
 export function setWaveformPhases(phases) {
   waveformPhases = phases;
+}
+
+export function setCurrentSynthesisController(controller) {
+  currentSynthesisController = controller;
+}
+
+export function nextPlaybackGeneration() {
+  playbackGeneration += 1;
+  return playbackGeneration;
+}
+
+export function setCancelPlayback(fn) {
+  cancelPlayback = fn;
 }
 
 export function setRefreshIntonationUi(fn) {

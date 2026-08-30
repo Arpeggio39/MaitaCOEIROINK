@@ -1,7 +1,16 @@
 const SEGMENT_PUNCT_RE = /[。、．.,!?！？…：:；;「」『』【】()（）\[\]{}'"‘’“”〜～]/u;
+const SEGMENT_OPEN_RE = /[「『【(（\[{‘“]/u;
 
 export function isSegmentPunctuation(ch) {
   return SEGMENT_PUNCT_RE.test(ch);
+}
+
+function isOpeningPunctuation(ch) {
+  return SEGMENT_OPEN_RE.test(ch);
+}
+
+function hasSpeechContent(value) {
+  return [...value].some((ch) => !isSegmentPunctuation(ch) && !isSegmentWhitespace(ch));
 }
 
 function isSegmentWhitespace(ch) {
@@ -20,7 +29,7 @@ export function sentenceRangesFromText(text) {
 
   function flushSegment(breakEnd) {
     const trimmed = buf.trim();
-    if (!trimmed) {
+    if (!trimmed || !hasSpeechContent(trimmed)) {
       buf = '';
       segStart = breakEnd;
       return;
@@ -35,6 +44,10 @@ export function sentenceRangesFromText(text) {
 
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
+    if (isOpeningPunctuation(ch) || ((ch === '"' || ch === "'") && !hasSpeechContent(buf))) {
+      buf += ch;
+      continue;
+    }
     if (isSegmentPunctuation(ch)) {
       buf += ch;
       flushSegment(i + 1);
