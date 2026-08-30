@@ -15,6 +15,13 @@ const POLL_INTERVAL_MS = 5000;
 
 /** @type {CoeiroinkStatusKind | null} */
 let lastRenderedKind = null;
+/** @type {Promise<void> | null} */
+let refreshInFlight = null;
+/** @type {(() => void | Promise<void>) | null} */
+let onlineHandler = null;
+/** @type {Promise<void> | null} */
+let onlineHandlerInFlight = null;
+let onlineHandlerSucceeded = false;
 
 /**
  * @param {CoeiroinkStatusKind} kind
@@ -61,14 +68,25 @@ function renderCoeiroinkStatus(kind, opts = {}) {
 function applyCoeiroinkWarning(kind, { initial = false, previousKind = null } = {}) {
   if (kind === 'online') {
     onCoeiroinkOnline();
+    if (!onlineHandlerSucceeded && !onlineHandlerInFlight && onlineHandler) {
+      onlineHandlerInFlight = Promise.resolve(onlineHandler())
+        .then(() => {
+          onlineHandlerSucceeded = true;
+        })
+        .catch(() => {})
+        .finally(() => {
+          onlineHandlerInFlight = null;
+        });
+    }
     return;
   }
   if (kind === 'offline' || kind === 'no-maita') {
+    onlineHandlerSucceeded = false;
     maybeShowCoeiroinkWarningForStatus(kind, { initial, previousKind });
   }
 }
 
-async function refreshCoeiroinkStatus({ initial = false } = {}) {
+async function runCoeiroinkStatusRefresh({ initial = false } = {}) {
   const previousKind = lastRenderedKind;
   renderCoeiroinkStatus('checking', { showChecking: initial });
 
@@ -100,8 +118,18 @@ async function refreshCoeiroinkStatus({ initial = false } = {}) {
   }
 }
 
+function refreshCoeiroinkStatus(options = {}) {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = runCoeiroinkStatusRefresh(options).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
 /** サイドバー左下の COEIROINK 起動ステータス表示を開始する */
-export function initCoeiroinkStatus() {
+export function initCoeiroinkStatus(onOnline) {
+  onlineHandler = onOnline ?? null;
+  onlineHandlerSucceeded = false;
   initCoeiroinkWarning(() => refreshCoeiroinkStatus());
   void refreshCoeiroinkStatus({ initial: true });
   setInterval(() => {

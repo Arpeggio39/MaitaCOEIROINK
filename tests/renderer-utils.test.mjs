@@ -17,7 +17,9 @@ import {
   hasPitchEdits,
   hasProsodyPitchEditsState,
   pitchEditMask,
+  remapEntriesByStableText,
   remapProsodyEntries,
+  shouldReconcileDefaultPitches,
 } from '../renderer/js/prosody-edit-utils.mjs';
 
 test('句読点・空白・改行で文章を順序どおりに区切る', () => {
@@ -34,6 +36,16 @@ test('句読点・空白・改行で文章を順序どおりに区切る', () =>
 test('空の入力や区切り文字だけの入力では文章を生成しない', () => {
   assert.deepEqual(sentenceRangesFromText(''), []);
   assert.deepEqual(sentenceRangesFromText('  \n\t'), []);
+  assert.deepEqual(sentenceRangesFromText('「」！'), []);
+});
+
+test('開き括弧は単独にせず本文と同じ区切りにする', () => {
+  assert.deepEqual(
+    sentenceRangesFromText('「おはよう」次です。').map((range) => range.text),
+    ['「おはよう」', '次です。'],
+  );
+  assert.deepEqual(sentenceRangesFromText('（おはよう）').map((range) => range.text), ['（おはよう）']);
+  assert.deepEqual(sentenceRangesFromText('"hello"').map((range) => range.text), ['"hello"']);
 });
 
 test('区切り別のWAV名は安全な連番になり、手動選択名には連番を付けない', () => {
@@ -89,6 +101,22 @@ test('手動ピッチ編集フラグがあれば baseline なしでも編集と�
   assert.equal(hasProsodyPitchEditsState(true, [6, 6, 6], undefined), true);
   assert.equal(hasProsodyPitchEditsState(false, [6, 6, 6], undefined), false);
   assert.equal(hasProsodyPitchEditsState(false, [8, 6, 6], undefined), false);
+});
+
+test('全モーラを6.00に手動調整した場合は基準値に戻さない', () => {
+  assert.equal(shouldReconcileDefaultPitches(true, [6, 6, 6, 6], [6.2, 6.4, 6.1, 5.9], 6), false);
+  assert.equal(shouldReconcileDefaultPitches(false, [6, 6, 6, 6], [6.2, 6.4, 6.1, 5.9], 6), true);
+});
+
+test('文章先頭の挿入後も区切り設定を同じ文章だけに移す', () => {
+  const a = { speedScale: 1.2 };
+  const b = { speedScale: 0.8 };
+  const remapped = remapEntriesByStableText(
+    { s0: a, s2: b },
+    [{ key: 's0', text: 'A' }, { key: 's2', text: 'B' }],
+    [{ key: 's0', text: 'X' }, { key: 's2', text: 'A' }, { key: 's4', text: 'B' }],
+  );
+  assert.deepEqual(remapped, { s2: a, s4: b });
 });
 
 test('同じ文章の韻律はオーバーレイ再構築後も同じ参照を保つ', () => {

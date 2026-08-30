@@ -7,30 +7,29 @@ import { loadDictionaryFromDisk, syncDictionaryToCoeiroink } from './dictionary.
 import { resizeWaveformCanvas } from './audio.js';
 import { migrateProjects, selectProject, syncActiveProjectFromUi } from './projects.js';
 import { loadAppSettingsFromDisk } from './settings.js';
-import { setSyncUiBeforeSave } from './persist.js';
+import { flushProjectsSync, setSyncUiBeforeSave } from './persist.js';
 import * as appState from './state.js';
+import { showToast } from './utils.js';
 
 async function boot() {
   initEditor();
   setSyncUiBeforeSave(() => {
-    syncActiveProjectFromUi();
+    syncActiveProjectFromUi({ persist: false });
   });
+  window.addEventListener('beforeunload', () => flushProjectsSync());
 
   bindEvents();
-  initCoeiroinkStatus();
   updateSegmentPanelsVisibility();
   refreshValueLabels();
   resizeWaveformCanvas();
 
   await loadDictionaryFromDisk();
-  try {
-    await syncDictionaryToCoeiroink();
-  } catch (_) {
-    /* COEIROINK 未起動時は辞書同期をスキップ */
-  }
   await loadAppSettingsFromDisk();
 
   const blob = await bridge.loadProjects();
+  if (blob?.__openMaitaLoadError) {
+    showToast('保存データが破損しているため、復旧用ファイルを保存して新規起動しました。', 8000);
+  }
   if (blob && Array.isArray(blob.projects) && blob.projects.length > 0) {
     appState.setProjects(blob.projects);
     migrateProjects(appState.projects);
@@ -56,6 +55,7 @@ async function boot() {
   }
 
   selectProject(appState.activeId);
+  initCoeiroinkStatus(() => syncDictionaryToCoeiroink());
 }
 
 void boot();

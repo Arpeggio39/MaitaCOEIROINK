@@ -47,6 +47,51 @@ export function hasProsodyPitchEditsState(pitchEditedByUser, pitches, baseline) 
   return hasPitchEdits(pitches, baseline);
 }
 
+export function shouldReconcileDefaultPitches(
+  pitchEditedByUser,
+  pitches,
+  baseline,
+  defaultPitch,
+) {
+  return (
+    !pitchEditedByUser &&
+    baseline?.length > 0 &&
+    pitches.length > 0 &&
+    pitches.every((pitch) => Math.abs(pitch - defaultPitch) <= PITCH_EPSILON)
+  );
+}
+
+/**
+ * @template T
+ * @param {Record<string, T>} oldMap
+ * @param {{ key: string, text: string }[]} previousRanges
+ * @param {{ key: string, text: string }[]} nextRanges
+ */
+export function remapEntriesByStableText(oldMap, previousRanges, nextRanges) {
+  /** @type {Record<string, T>} */
+  const next = {};
+  const usedOldKeys = new Set();
+  for (const range of nextRanges) {
+    const sameKeyRange = previousRanges.find((candidate) => candidate.key === range.key);
+    if (oldMap[range.key] && sameKeyRange?.text === range.text) {
+      next[range.key] = oldMap[range.key];
+      usedOldKeys.add(range.key);
+      continue;
+    }
+    const previous = previousRanges.find(
+      (candidate) =>
+        candidate.text === range.text &&
+        !usedOldKeys.has(candidate.key) &&
+        oldMap[candidate.key],
+    );
+    if (previous) {
+      next[range.key] = oldMap[previous.key];
+      usedOldKeys.add(previous.key);
+    }
+  }
+  return next;
+}
+
 /**
  * オーバーレイ再構築後も文章が継続する場合は、既存の韻律オブジェクトを保つ。
  * スライダーはモーラの参照を保持するため、ここで複製すると以後の編集が

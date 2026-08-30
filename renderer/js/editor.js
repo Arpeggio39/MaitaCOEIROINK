@@ -44,20 +44,29 @@ export function updateSegmentPanelsVisibility() {
   els.intonationDock.classList.toggle('is-inactive', !hasSelection);
 }
 
-export function saveActiveSegmentParams() {
+export function saveActiveSegmentParams({ persist = true } = {}) {
   if (activeSentenceKey == null) return;
   const p = activeProject();
   if (!p) return;
   if (!p.sentenceParamsByKey) p.sentenceParamsByKey = {};
   const saved = snapshotParamsFromControls(segmentParamControls);
   const base = cloneParams(p.params);
+  const previous = p.sentenceParamsByKey[activeSentenceKey];
+  let changed = false;
   if (paramsEqual(saved, base)) {
-    delete p.sentenceParamsByKey[activeSentenceKey];
+    if (previous) {
+      delete p.sentenceParamsByKey[activeSentenceKey];
+      changed = true;
+    }
   } else {
-    p.sentenceParamsByKey[activeSentenceKey] = cloneParams(saved);
+    if (!previous || !paramsEqual(saved, previous)) {
+      p.sentenceParamsByKey[activeSentenceKey] = cloneParams(saved);
+      changed = true;
+    }
   }
+  if (!changed) return;
   bumpActiveUpdatedAt();
-  schedulePersist();
+  if (persist) schedulePersist();
 }
 
 export function clearSentenceSelection() {
@@ -210,6 +219,7 @@ export function renderIntonationUI() {
       if (next === prev) return;
       span.mora.hira = next;
       bumpActiveUpdatedAt();
+      schedulePersist();
       scheduleProsodyKanaReestimate(p, key);
     });
 

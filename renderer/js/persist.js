@@ -14,6 +14,15 @@ export function schedulePersist() {
 }
 
 export async function persistProjects() {
+  clearTimeout(saveTimer);
+  setSaveTimer(null);
   syncUiBeforeSave?.();
   await bridge.saveProjects({ projects, activeId });
+}
+
+export function flushProjectsSync() {
+  clearTimeout(saveTimer);
+  setSaveTimer(null);
+  syncUiBeforeSave?.();
+  bridge.saveProjectsSync({ projects, activeId });
 }

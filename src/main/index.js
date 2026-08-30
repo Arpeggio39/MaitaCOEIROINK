@@ -4,7 +4,7 @@ const { installAppMenu } = require('./menu');
 const { registerAllIpcHandlers } = require('./ipc');
 const { initUpdater, checkForUpdatesOnStartup } = require('./updater');
 
-registerAllIpcHandlers();
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -27,14 +27,26 @@ function createWindow() {
   return win;
 }
 
-app.whenReady().then(() => {
-  installAppMenu();
-  initUpdater();
-  createWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  registerAllIpcHandlers();
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    installAppMenu();
+    initUpdater();
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

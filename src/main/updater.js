@@ -6,6 +6,7 @@ let manualCheckPending = false;
 
 /** @type {boolean} */
 let startupCheckPending = false;
+let updatePromptPending = false;
 
 function resetStartupUpdateFlow() {
   startupCheckPending = false;
@@ -49,6 +50,9 @@ function registerUpdaterEvents() {
 
   autoUpdater.on('update-available', (info) => {
     if (startupCheckPending) return;
+    if (!manualCheckPending) return;
+    if (updatePromptPending) return;
+    updatePromptPending = true;
 
     const notes = typeof info.releaseNotes === 'string'
       ? info.releaseNotes
@@ -63,8 +67,11 @@ function registerUpdaterEvents() {
       defaultId: 0,
       cancelId: 1,
     }).then(({ response }) => {
+      updatePromptPending = false;
       if (response === 0) {
         autoUpdater.downloadUpdate().catch(() => {});
+      } else {
+        manualCheckPending = false;
       }
     });
   });
@@ -91,6 +98,8 @@ function registerUpdaterEvents() {
       autoUpdater.quitAndInstall(false, true);
       return;
     }
+
+    manualCheckPending = false;
 
     showMessageBox({
       type: 'info',
@@ -144,6 +153,7 @@ async function checkForUpdatesManually() {
     return;
   }
 
+  if (startupCheckPending) resetStartupUpdateFlow();
   manualCheckPending = true;
   autoUpdater.autoDownload = false;
   try {

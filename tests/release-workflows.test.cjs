@@ -70,3 +70,8 @@ test('起動時の更新は確認なしで自動ダウンロード・インス�
   assert.match(updaterSource, /autoUpdater\.autoDownload = true/);
   assert.match(updaterSource, /startupCheckPending[\s\S]*quitAndInstall/);
 });
+
+test('起動時確認と手動確認が重なった場合は手動フローへ切り替える', () => {
+  assert.match(updaterSource, /if \(startupCheckPending\) resetStartupUpdateFlow\(\);[\s\S]*manualCheckPending = true/);
+  assert.match(updaterSource, /update-available[\s\S]*if \(!manualCheckPending\) return;[\s\S]*if \(updatePromptPending\) return/);
+});

@@ -47,6 +47,7 @@
       "artifactName": "OpenMaita-${version}.${ext}"
     },
     "win": {
+      "icon": "bionmaita/icons/302790798.png",
       "target": [
         {
           "target": "nsis",
