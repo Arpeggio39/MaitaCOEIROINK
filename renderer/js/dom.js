@@ -56,6 +56,8 @@ export const els = {
   intonationContent: document.getElementById('intonationContent'),
   intonationTextStrip: document.getElementById('intonationTextStrip'),
   intonationSliderStrip: document.getElementById('intonationSliderStrip'),
+  coeiroinkStatusDot: document.getElementById('coeiroinkStatusDot'),
+  coeiroinkStatusText: document.getElementById('coeiroinkStatusText'),
 };
 
 els.btnPlayIconPlay = els.btnPlay.querySelector('.icon-play');

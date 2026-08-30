@@ -1,5 +1,6 @@
 import { PARAM_DEFAULTS } from './constants.js';
 import { bridge } from './bridge.js';
+import { initCoeiroinkStatus } from './coeiroink-status.js';
 import { initEditor, refreshValueLabels, updateSegmentPanelsVisibility } from './editor.js';
 import { bindEvents } from './events.js';
 import { loadDictionaryFromDisk, syncDictionaryToCoeiroink } from './dictionary.js';
@@ -16,6 +17,7 @@ async function boot() {
   });
 
   bindEvents();
+  initCoeiroinkStatus();
   updateSegmentPanelsVisibility();
   refreshValueLabels();
   resizeWaveformCanvas();

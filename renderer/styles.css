@@ -933,14 +933,6 @@ button {
   width: 92px;
 }
 
-.dict-table .col-mora {
-  width: 56px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .dict-table .col-del {
   width: 44px;
 }
