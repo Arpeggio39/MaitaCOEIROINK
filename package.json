@@ -1,6 +1,6 @@
 {
   "name": "openmaita-shell",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "COEIROINK で琵音マイタのナレーションを作る Windows アプリ",
   "main": "src/main/index.js",
   "author": "Arpeggio",
