@@ -4,6 +4,14 @@ const { autoUpdater } = require('electron-updater');
 /** @type {boolean} */
 let manualCheckPending = false;
 
+/** @type {boolean} */
+let startupCheckPending = false;
+
+function resetStartupUpdateFlow() {
+  startupCheckPending = false;
+  autoUpdater.autoDownload = false;
+}
+
 function getParentWindow() {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
 }
@@ -26,7 +34,10 @@ function registerUpdaterEvents() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('error', (err) => {
+    const wasManual = manualCheckPending;
     manualCheckPending = false;
+    resetStartupUpdateFlow();
+    if (!wasManual) return;
     showMessageBox({
       type: 'error',
       title: '更新エラー',
@@ -37,6 +48,8 @@ function registerUpdaterEvents() {
   });
 
   autoUpdater.on('update-available', (info) => {
+    if (startupCheckPending) return;
+
     const notes = typeof info.releaseNotes === 'string'
       ? info.releaseNotes
       : '';
@@ -57,6 +70,10 @@ function registerUpdaterEvents() {
   });
 
   autoUpdater.on('update-not-available', () => {
+    if (startupCheckPending) {
+      resetStartupUpdateFlow();
+      return;
+    }
     if (!manualCheckPending) return;
     manualCheckPending = false;
     showMessageBox({
@@ -69,6 +86,12 @@ function registerUpdaterEvents() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    if (startupCheckPending) {
+      resetStartupUpdateFlow();
+      autoUpdater.quitAndInstall(false, true);
+      return;
+    }
+
     showMessageBox({
       type: 'info',
       title: '更新の準備完了',
@@ -92,7 +115,11 @@ function initUpdater() {
 
 function checkForUpdatesOnStartup() {
   if (!isUpdaterEnabled()) return;
-  autoUpdater.checkForUpdates().catch(() => {});
+  startupCheckPending = true;
+  autoUpdater.autoDownload = true;
+  autoUpdater.checkForUpdates().catch(() => {
+    resetStartupUpdateFlow();
+  });
 }
 
 async function checkForUpdatesManually() {
@@ -118,6 +145,7 @@ async function checkForUpdatesManually() {
   }
 
   manualCheckPending = true;
+  autoUpdater.autoDownload = false;
   try {
     await autoUpdater.checkForUpdates();
   } catch {

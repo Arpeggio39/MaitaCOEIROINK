@@ -64,36 +64,40 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Read version from package.json
+      - name: Resolve release version
         id: version
-        shell: pwsh
-        run: |
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "Release version: v$version"
-
-      - name: Skip if release already exists
-        id: check
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $args = @()
           if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.force }}' -eq 'true') {
-            "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host "Force rebuild requested."
+            $args += '--force'
+          }
+          node scripts/resolve-release-version.cjs @args
+          Write-Host "Release version: v${{ steps.version.outputs.version }}"
+
+      - name: Commit version bump
+        if: steps.version.outputs.bumped == 'true'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Skip if release already exists
+        id: check
+        shell: pwsh
+        run: |
+          if ('${{ steps.version.outputs.skip }}' -eq 'True') {
+            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Release skipped."
             exit 0
           }
-          $tag = "v${{ steps.version.outputs.version }}"
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
-            "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host "Release $tag already exists. Skipping."
-          } else {
-            "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            Write-Host "Release $tag not found. Will build."
-          }
-          exit 0
+          "skip=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Will build v${{ steps.version.outputs.version }}."
 
       - name: Ensure release tag exists
         if: steps.check.outputs.skip != 'true'

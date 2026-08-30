@@ -24,9 +24,17 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 
 
 test('アプリと音声パックは package.json で統一バージョン管理する', () => {
   assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
-  assert.match(electronWorkflow, /Read version from package\.json/);
-  assert.match(voicePackWorkflow, /require\('\.\/package\.json'\)\.version/);
+  assert.match(electronWorkflow, /resolve-release-version\.cjs/);
+  assert.match(voicePackWorkflow, /resolve-release-version\.cjs/);
   assert.equal(fs.existsSync(path.join(root, 'bionmaita/version')), false);
+});
+
+test('Release は原則 0.1 刻みで minor bump する', () => {
+  assert.match(electronWorkflow, /resolve-release-version\.cjs/);
+  assert.match(voicePackWorkflow, /default: minor/);
+  assert.match(voicePackWorkflow, /bump-version\.cjs/);
+  const bumpSource = fs.readFileSync(path.join(root, 'scripts/bump-version.cjs'), 'utf8');
+  assert.match(bumpSource, /minor \+ 1/);
 });
 
 test('音声パックだけの変更ではアプリReleaseを起動しない', () => {
@@ -46,4 +54,10 @@ test('起動時の更新確認はメインウィンドウ表示後に行う', ()
   assert.match(updaterSource, /function checkForUpdatesOnStartup/);
   assert.match(indexSource, /ready-to-show[\s\S]*checkForUpdatesOnStartup/);
   assert.doesNotMatch(updaterSource, /checkOnStartup/);
+});
+
+test('起動時の更新は確認なしで自動ダウンロード・インストールする', () => {
+  assert.match(updaterSource, /startupCheckPending/);
+  assert.match(updaterSource, /autoUpdater\.autoDownload = true/);
+  assert.match(updaterSource, /startupCheckPending[\s\S]*quitAndInstall/);
 });

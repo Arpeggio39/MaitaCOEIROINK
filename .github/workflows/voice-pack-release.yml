@@ -12,11 +12,11 @@ on:
         description: 'package.json の version を自動で上げる（none なら現在値で Release のみ）'
         required: false
         type: choice
-        default: none
+        default: minor
         options:
+          - minor
           - none
           - patch
-          - minor
           - major
       force:
         description: '既存のアセットがあっても再ビルドする'
@@ -28,37 +28,8 @@ permissions:
   contents: read
 
 jobs:
-  bump:
-    name: Bump app version
-    if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Bump version
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm version "${{ inputs.bump }}" --no-git-tag-version
-          new_version="$(node -p "require('./package.json').version")"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
-          git commit -m "chore: bump version to ${new_version}"
-          git push origin HEAD:main
-
   release:
     name: Publish voice pack
-    if: github.event_name != 'workflow_dispatch' || inputs.bump == 'none'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -80,9 +51,18 @@ jobs:
       - name: Pull LFS objects
         run: git lfs pull
 
-      - name: Read version
+      - name: Bump version manually
+        if: github.event_name == 'workflow_dispatch' && inputs.bump != 'none'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/bump-version.cjs "${{ inputs.bump }}"
+
+      - name: Resolve release version
         id: version
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
@@ -90,10 +70,23 @@ jobs:
             echo "Invalid package.json version: $version"
             exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "artifact=bionmaita-$version.zip" >> "$GITHUB_OUTPUT"
-          echo "Voice pack version: $version (OpenMaita unified)"
+          artifact="bionmaita-$version.zip"
+          args=(--artifact "$artifact")
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            args+=(--force)
+          fi
+          node scripts/resolve-release-version.cjs "${args[@]}"
+
+      - name: Commit version bump
+        if: steps.version.outputs.bumped == 'true' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none')
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
 
       - name: Skip if artifact already exists
         id: check
@@ -108,7 +101,7 @@ jobs:
             exit 0
           fi
           tag="${{ steps.version.outputs.tag }}"
-          artifact="${{ steps.version.outputs.artifact }}"
+          artifact="bionmaita-${{ steps.version.outputs.version }}.zip"
           if ! gh release view "$tag" >/dev/null 2>&1; then
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Release $tag not found. Will build."
@@ -163,7 +156,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
-          artifact="${{ steps.version.outputs.artifact }}"
+          artifact="bionmaita-$version.zip"
           staging="dist-voice-pack/bionmaita-$version"
           rm -rf dist-voice-pack
           mkdir -p "$staging"
@@ -180,5 +173,5 @@ jobs:
         run: |
           set -euo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          artifact="${{ steps.version.outputs.artifact }}"
+          artifact="bionmaita-${{ steps.version.outputs.version }}.zip"
           gh release upload "$tag" "$artifact" --clobber
