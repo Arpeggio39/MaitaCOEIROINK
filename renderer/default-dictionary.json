@@ -1,0 +1,29 @@
+{
+  "dictionaryWords": [
+    { "word": "Arpeggio", "yomi": "アルペジオ", "accent": 0 },
+    { "word": "Arpeggio39", "yomi": "アルペジオさんきゅー", "accent": 0 },
+    { "word": "OpenMaita", "yomi": "オープンマイタ", "accent": 0 },
+    { "word": "bionmaita", "yomi": "びおんまいた", "accent": 0 },
+    { "word": "COEIROINK", "yomi": "コエイロインク", "accent": 0 },
+    { "word": "琵音マイタ", "yomi": "びおんまいた", "accent": 0 },
+    { "word": "声音の宴", "yomi": "こわねのうたげ", "accent": 0 },
+    { "word": "同志社大学", "yomi": "どうししゃだいがく", "accent": 5 },
+    { "word": "同志社", "yomi": "どうししゃ", "accent": 0 },
+    { "word": "同志社EVE", "yomi": "どうししゃいぶ", "accent": 5 },
+    { "word": "EVE", "yomi": "いぶ", "accent": 1 },
+    { "word": "出川校", "yomi": "でがわこう", "accent": 3 },
+    { "word": "けいはんなプラザ", "yomi": "けいはんなぷらざ", "accent": 0 },
+    { "word": "けいはんな", "yomi": "けいはんな", "accent": 0 },
+    { "word": "クローバー祭", "yomi": "くろーばーさい", "accent": 4 },
+    { "word": "VOCALOID", "yomi": "ボーカロイド", "accent": 0 },
+    { "word": "ボカコレ", "yomi": "ぼかこれ", "accent": 0 },
+    { "word": "ニコニコ", "yomi": "にこにこ", "accent": 0 },
+    { "word": "nicovideo", "yomi": "にこにこびでお", "accent": 0 },
+    { "word": "Discord", "yomi": "ディスコード", "accent": 0 },
+    { "word": "DTM", "yomi": "ディーティーエム", "accent": 0 },
+    { "word": "MIX", "yomi": "ミックス", "accent": 0 },
+    { "word": "Live2D", "yomi": "ライブツーディー", "accent": 0 },
+    { "word": "MMD", "yomi": "エムエムディー", "accent": 0 },
+    { "word": "Blender", "yomi": "ブレンダー", "accent": 0 }
+  ]
+}

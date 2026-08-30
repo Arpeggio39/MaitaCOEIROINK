@@ -1,8 +1,34 @@
 import { DEFAULT_API_BASE } from './constants.js';
-import { countMorasFromYomi, fetchWithTimeout } from './utils.js';
+import { buildDictionaryPayload } from './dictionary-variants.mjs';
+import { fetchWithTimeout } from './utils.js';
+
+export { buildDictionaryPayload };
 
 /** @type {string | null} */
 let resolvedApiBase = null;
+
+/** 接続先キャッシュをクリアする（エンジン停止後の再検出用） */
+export function resetApiBaseCache() {
+  resolvedApiBase = null;
+}
+
+/**
+ * エンジン到達性を確認する（キャッシュは更新しない）
+ * @param {number} [timeoutMs]
+ * @returns {Promise<string | null>}
+ */
+export async function probeCoeiroinkReachable(timeoutMs = 3000) {
+  const bases = [DEFAULT_API_BASE, 'http://localhost:50032'];
+  for (const base of bases) {
+    try {
+      const res = await fetchWithTimeout(`${base}/`, {}, timeoutMs);
+      if (res.ok) return base;
+    } catch (_) {
+      /* 次の候補を試す */
+    }
+  }
+  return null;
+}
 
 /** COEIROINK エンジンの API ベース URL（127.0.0.1 → localhost の順で解決） */
 export async function resolveApiBase() {
@@ -22,20 +48,6 @@ export async function resolveApiBase() {
   throw lastErr instanceof Error
     ? lastErr
     : new Error('COEIROINK に接続できません。COEIROINK を起動してから再度お試しください。');
-}
-
-/**
- * @param {{ word: string, yomi: string, accent: number }[]} rows
- */
-export function buildDictionaryPayload(rows) {
-  return {
-    dictionaryWords: rows.map((e) => ({
-      word: e.word,
-      yomi: e.yomi,
-      accent: e.accent,
-      numMoras: countMorasFromYomi(e.yomi),
-    })),
-  };
 }
 
 /**

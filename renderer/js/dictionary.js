@@ -2,7 +2,7 @@ import { buildDictionaryPayload, postCoeiroink } from './coeiroink-api.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
 import * as appState from './state.js';
-import { countMorasFromYomi, showToast } from './utils.js';
+import { showToast } from './utils.js';
 
 function normalizeDictionaryEntries(raw) {
   if (!Array.isArray(raw)) return [];
@@ -37,15 +37,6 @@ async function persistDictionaryToDisk() {
   });
 }
 
-/**
- * @param {HTMLTableRowElement} tr
- */
-function updateRowMoraCell(tr) {
-  const yomi = /** @type {HTMLInputElement | null} */ (tr.querySelector('.dict-input-yomi'))?.value ?? '';
-  const cell = tr.querySelector('.dict-mora-val');
-  if (cell) cell.textContent = String(countMorasFromYomi(yomi));
-}
-
 export function renderDictionaryRows() {
   els.dictionaryRows.innerHTML = '';
   const rows =
@@ -59,19 +50,16 @@ export function renderDictionaryRows() {
  * @param {{ word: string, yomi: string, accent: number }} entry
  */
 export function appendDictionaryRow(entry) {
-  const moras = countMorasFromYomi(entry.yomi);
   const tr = document.createElement('tr');
   tr.innerHTML = `
       <td><input type="text" class="input dict-input dict-input-word" lang="en" inputmode="text" autocomplete="off" value="" spellcheck="false" /></td>
       <td><input type="text" class="input dict-input dict-input-yomi" value="" spellcheck="false" /></td>
       <td><input type="number" class="input dict-input dict-input-accent" min="0" step="1" /></td>
-      <td class="dict-mora-val col-mora">${moras}</td>
       <td class="col-del"><button type="button" class="btn btn-row-del" title="行を削除">×</button></td>
     `;
   /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-word')).value = entry.word;
   /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-yomi')).value = entry.yomi;
   /** @type {HTMLInputElement} */ (tr.querySelector('.dict-input-accent')).value = String(entry.accent);
-  tr.querySelector('.dict-input-yomi')?.addEventListener('input', () => updateRowMoraCell(tr));
   tr.querySelector('.btn-row-del')?.addEventListener('click', () => {
     tr.remove();
     if (!els.dictionaryRows.querySelector('tr')) appendDictionaryRow({ word: '', yomi: '', accent: 1 });

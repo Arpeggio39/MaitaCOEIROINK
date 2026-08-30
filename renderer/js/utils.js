@@ -12,21 +12,6 @@ export function fetchWithTimeout(url, init = {}, ms = 8000) {
   return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(id));
 }
 
-/** 読みからモーラ数のおおよその数 */
-export function countMorasFromYomi(yomi) {
-  const s = yomi.normalize('NFKC').replace(/\s+/g, '');
-  if (!s.length) return 1;
-  const SMALL = /^[ァィゥェォャュョぁぃぅぇぉゃゅょゎ]$/u;
-  let i = 0;
-  let moras = 0;
-  while (i < s.length) {
-    moras += 1;
-    i += 1;
-    if (i < s.length && SMALL.test(s[i])) i += 1;
-  }
-  return Math.max(moras, 1);
-}
-
 export function coerceSampleRate(value) {
   const num = Number(value);
   if (Number.isFinite(num) && SAMPLE_RATE_OPTIONS.includes(num)) return num;
