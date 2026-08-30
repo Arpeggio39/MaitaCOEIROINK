@@ -64,11 +64,11 @@ Mac で M シリーズチップを使っている場合は Apple Silicon 版を�
 
 ### ③ 琵音マイタ 音声パックをダウンロード
 
-[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-0.1.1.zip`）。アプリと同じページにあります。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードします（例: `bionmaita-1.0.0.zip`）。アプリと同じページにあります。
 
 <img src="./docs/images/github-release-openmaita.png" alt="ダウンロードページから OpenMaita と音声パックを取得" width="800">
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.0/`）。
 
 ### ④ speaker_info フォルダーにコピー
 
@@ -130,9 +130,9 @@ ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入�
 
 ### ④ 琵音マイタ 音声パックをダウンロード
 
-[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-0.1.1.zip`）。アプリと同じページにあります。
+[ダウンロードページ](https://github.com/Arpeggio39/MaitaCOEIROINK/releases) から **`bionmaita-{version}.zip`** をダウンロードして展開してください（例: `bionmaita-1.0.0.zip`）。アプリと同じページにあります。
 
-ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-0.1.1/`）。
+ZIP を解凍すると、中に **`bionmaita-{version}`** フォルダーが入っています（例: `bionmaita-1.0.0/`）。
 
 ### ⑤ speaker_info にコピー
 
@@ -182,7 +182,7 @@ npm start
 
 | 対象 | トリガー | タグ例 |
 |------|----------|--------|
-| OpenMaita アプリ（exe） | `package.json` の version を更新して main に push | `v0.1.1`（Release名: `OpenMaita 0.1.1`） |
+| OpenMaita アプリ（exe） | `package.json` の version を更新して main に push | `v1.0.0`（Release名: `OpenMaita 1.0.0`） |
 | bionmaita 音声パック | `bionmaita/**` の変更を main に push、または Actions から手動実行 | 同上の `v*` Release に ZIP を追加 |
 
 音声パックのバージョンを上げる場合は、GitHub Actions の **Release Voice Pack** ワークフローから `bump: patch / minor / major` を選ぶと `package.json` が更新されます。音声パックだけ差し替える場合は `bump: none` で現在のバージョンの Release に上書きアップロードできます。
