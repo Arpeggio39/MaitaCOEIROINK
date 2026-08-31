@@ -1,6 +1,6 @@
 /** 読みからモーラ数のおおよその数 */
 export function countMorasFromYomi(yomi) {
-  const s = yomi.normalize('NFKC').replace(/\s+/g, '');
+  const s = normalizeDictionaryYomi(yomi).replace(/\s+/g, '');
   if (!s.length) return 1;
   const SMALL = /^[ァィゥェォャュョぁぃぅぇぉゃゅょゎ]$/u;
   let i = 0;
@@ -11,6 +11,13 @@ export function countMorasFromYomi(yomi) {
     if (i < s.length && SMALL.test(s[i])) i += 1;
   }
   return Math.max(moras, 1);
+}
+
+/** COEIROINK/OpenJTalk の辞書へ渡せる全角カタカナへ読みを正規化する */
+export function normalizeDictionaryYomi(yomi) {
+  return String(yomi ?? '')
+    .normalize('NFKC')
+    .replace(/[ぁ-ゖ]/gu, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));
 }
 
 /** 全角英数字・記号を半角へ */
@@ -67,7 +74,7 @@ export function buildDictionaryPayload(rows) {
   const byWord = new Map();
 
   for (const e of rows) {
-    const yomi = e.yomi;
+    const yomi = normalizeDictionaryYomi(e.yomi);
     const numMoras = countMorasFromYomi(yomi);
     const rawAccent = Number(e.accent);
     const accent = Number.isFinite(rawAccent)

@@ -24,6 +24,7 @@ export const els = {
   exportTextEncodingGroup: document.getElementById('exportTextEncodingGroup'),
   exportChoiceModal: document.getElementById('exportChoiceModal'),
   btnExportChoiceDismiss: document.getElementById('btnExportChoiceDismiss'),
+  btnExportCombined: document.getElementById('btnExportCombined'),
   btnExportSelected: document.getElementById('btnExportSelected'),
   btnExportAll: document.getElementById('btnExportAll'),
   speedScale: document.getElementById('speedScale'),

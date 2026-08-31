@@ -25,6 +25,7 @@ import { activeProject } from './state.js';
 import {
   closeExportChoiceModal,
   exportAllAudio,
+  exportCombinedAudio,
   exportSelectedAudio,
   openExportChoiceModal,
   resizeWaveformCanvas,
@@ -95,6 +96,7 @@ export function bindEvents() {
   els.btnPlay.addEventListener('click', () => void togglePlayback());
   els.btnExport.addEventListener('click', () => openExportChoiceModal());
   els.btnExportChoiceDismiss.addEventListener('click', () => closeExportChoiceModal());
+  els.btnExportCombined.addEventListener('click', () => void exportCombinedAudio());
   els.btnExportSelected.addEventListener('click', () => void exportSelectedAudio());
   els.btnExportAll.addEventListener('click', () => void exportAllAudio());
 

@@ -21,8 +21,16 @@ test('手動書き出しはヘッダーから選択・全件を選べる', () =>
   assert.match(html, /id="btnExport"/);
   assert.match(html, /id="btnExportSelected"/);
   assert.match(html, /id="btnExportAll"/);
+  assert.match(html, /id="btnExportCombined"/);
   assert.match(dom, /btnExportSelected:/);
   assert.match(dom, /btnExportAll:/);
+  assert.match(dom, /btnExportCombined:/);
+});
+
+test('全文を1つのWAVへ結合し、区切り別は全件合成後に保存する', () => {
+  assert.match(audio, /exportCombinedAudio/);
+  assert.match(audio, /concatWavBuffers\(parts\)/);
+  assert.ok(audio.indexOf('artifacts.push') < audio.indexOf('for (const artifact of artifacts)'));
 });
 
 test('右サイドバーの文章書き出しボタンは存在しない', () => {
@@ -69,4 +77,10 @@ test('二重起動を防ぎ、既存ウィンドウをフォーカスする', ()
 
 test('空のユーザー辞書も有効な保存状態として扱う', () => {
   assert.doesNotMatch(dictionaryIpc, /dictionaryWords\.length > 0/);
+});
+
+test('辞書更新前の韻律取得を無効化して古い読みを復活させない', () => {
+  assert.match(rendererScripts, /辞書更新前に始まった韻律取得/);
+  assert.match(rendererScripts, /prosodyFetchGeneration\.set/);
+  assert.match(rendererScripts, /prosodyFetchInFlight\.delete/);
 });
