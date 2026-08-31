@@ -640,6 +640,22 @@ export function scheduleProsodyForRanges(project, ranges) {
 }
 
 export function invalidateAllProsodyAfterDictionaryChange() {
+  // 辞書更新前に始まった韻律取得が完了して古い読みをキャッシュへ戻すのを防ぐ。
+  const pendingKeys = new Set([
+    ...prosodyFetchGeneration.keys(),
+    ...prosodyFetchInFlight,
+    ...prosodyFetchPromises.keys(),
+  ]);
+  for (const requestKey of pendingKeys) {
+    prosodyFetchGeneration.set(requestKey, (prosodyFetchGeneration.get(requestKey) || 0) + 1);
+    prosodyFetchInFlight.delete(requestKey);
+    prosodyFetchPromises.delete(requestKey);
+  }
+  for (const timer of kanaReestimateTimers.values()) clearTimeout(timer);
+  kanaReestimateTimers.clear();
+  kanaReestimatePending.clear();
+  kanaReestimateInFlight.clear();
+
   for (const project of appState.projects) project.sentenceProsodyByKey = {};
   const project = appState.activeProject();
   if (project) scheduleProsodyForRanges(project, sentenceRangesFromText(project.text || ''));

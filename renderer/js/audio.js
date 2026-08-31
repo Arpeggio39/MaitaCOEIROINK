@@ -22,115 +22,16 @@ import { activeProject, activeSentenceKey } from './state.js';
 import * as appState from './state.js';
 import { showOperationError } from './coeiroink-warning.js';
 import { coerceSampleRate, showToast } from './utils.js';
+import { concatWavBuffers } from './wav-utils.mjs';
 import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
 import { getExportSamplingRate, persistAppSettings } from './settings.js';
 import {
+  combinedExportFilename,
   segmentExportFilename,
   selectedExportFilename,
   textFilePathForWav,
 } from './export-utils.mjs';
-
-/**
- * @param {ArrayBuffer} ab
- */
-function parseWav(ab) {
-  const u8 = new Uint8Array(ab);
-  const dv = new DataView(ab);
-  if (u8.length < 44) throw new Error('WAV が短すぎます');
-  /** @type {{ audioFormat: number, numChannels: number, sampleRate: number, bitsPerSample: number }} */
-  let fmt = null;
-  let dataOffset = 0;
-  let dataSize = 0;
-  let offset = 12;
-  while (offset + 8 <= u8.length) {
-    const id = String.fromCharCode(u8[offset], u8[offset + 1], u8[offset + 2], u8[offset + 3]);
-    const chunkSize = dv.getUint32(offset + 4, true);
-    if (id === 'fmt ') {
-      fmt = {
-        audioFormat: dv.getUint16(offset + 8, true),
-        numChannels: dv.getUint16(offset + 10, true),
-        sampleRate: dv.getUint32(offset + 12, true),
-        bitsPerSample: dv.getUint16(offset + 22, true),
-      };
-    } else if (id === 'data') {
-      dataOffset = offset + 8;
-      dataSize = chunkSize;
-      break;
-    }
-    offset += 8 + chunkSize;
-  }
-  if (!fmt || !dataSize) throw new Error('WAV の解析に失敗しました');
-  const pcm = u8.slice(dataOffset, dataOffset + dataSize);
-  return { ...fmt, pcm, pcmByteLength: pcm.byteLength };
-}
-
-/**
- * @param {number} sampleRate
- * @param {number} numChannels
- * @param {number} bitsPerSample
- * @param {Uint8Array} pcmData
- */
-function buildStandardWav(sampleRate, numChannels, bitsPerSample, pcmData) {
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const byteRate = sampleRate * blockAlign;
-  const dataSize = pcmData.byteLength;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const dv = new DataView(buffer);
-  const out = new Uint8Array(buffer);
-  const wstr = (pos, s) => {
-    for (let i = 0; i < s.length; i++) out[pos + i] = s.charCodeAt(i);
-  };
-  wstr(0, 'RIFF');
-  dv.setUint32(4, 36 + dataSize, true);
-  wstr(8, 'WAVE');
-  wstr(12, 'fmt ');
-  dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true);
-  dv.setUint16(22, numChannels, true);
-  dv.setUint32(24, sampleRate, true);
-  dv.setUint32(28, byteRate, true);
-  dv.setUint16(32, blockAlign, true);
-  dv.setUint16(34, bitsPerSample, true);
-  wstr(36, 'data');
-  dv.setUint32(40, dataSize, true);
-  out.set(pcmData, 44);
-  return buffer;
-}
-
-/**
- * @param {{ sampleRate: number, numChannels: number, bitsPerSample: number }} meta
- * @param {number} seconds
- */
-function silenceBuffer(meta, seconds) {
-  const bytesPerSample = meta.bitsPerSample / 8;
-  const n = Math.floor(seconds * meta.sampleRate) * meta.numChannels * bytesPerSample;
-  return buildStandardWav(meta.sampleRate, meta.numChannels, meta.bitsPerSample, new Uint8Array(n));
-}
-
-/**
- * @param {ArrayBuffer[]} buffers
- */
-function concatWavBuffers(buffers) {
-  if (buffers.length === 0) throw new Error('結合する音声がありません');
-  if (buffers.length === 1) return buffers[0];
-  const parsed = buffers.map(parseWav);
-  const m0 = parsed[0];
-  for (let i = 1; i < parsed.length; i++) {
-    const m = parsed[i];
-    if (m.sampleRate !== m0.sampleRate || m.numChannels !== m0.numChannels || m.bitsPerSample !== m0.bitsPerSample) {
-      throw new Error('行ごとの WAV 形式が一致しません。サンプルレートを固定して再試行してください。');
-    }
-  }
-  const totalPcm = parsed.reduce((s, p) => s + p.pcmByteLength, 0);
-  const merged = new Uint8Array(totalPcm);
-  let off = 0;
-  for (const p of parsed) {
-    merged.set(p.pcm, off);
-    off += p.pcmByteLength;
-  }
-  return buildStandardWav(m0.sampleRate, m0.numChannels, m0.bitsPerSample, merged);
-}
 
 /**
  * @param {string} textLine
@@ -368,6 +269,50 @@ export function closeExportChoiceModal() {
   els.exportChoiceModal.classList.add('hidden');
 }
 
+function setExportButtonsDisabled(disabled) {
+  els.btnExportCombined.disabled = disabled;
+  els.btnExportAll.disabled = disabled;
+  els.btnExportSelected.disabled = disabled || activeSentenceKey == null;
+}
+
+async function resolveSingleExportPath(defaultName) {
+  return appState.exportDirectoryEnabled && appState.exportDirectory
+    ? bridge.resolveExportFilePath(appState.exportDirectory, defaultName, {
+        unique: appState.preventExportOverwrite,
+        companionText: appState.exportTextFileEnabled,
+      })
+    : bridge.saveWavDialog(defaultName);
+}
+
+export async function exportCombinedAudio() {
+  const ranges = sentenceRangesFromText(els.editor.value);
+  if (ranges.length === 0) {
+    showToast('書き出す文章がありません');
+    return;
+  }
+
+  setExportButtonsDisabled(true);
+  try {
+    await persistAppSettings();
+    const p = activeProject();
+    if (!p) return;
+    const filePath = await resolveSingleExportPath(combinedExportFilename(p.title));
+    if (!filePath) return;
+
+    saveActiveSegmentParams();
+    const parts = [];
+    for (const range of ranges) parts.push(await synthesizeRange(p, range));
+    await writeExportFiles(filePath, concatWavBuffers(parts), els.editor.value);
+    closeExportChoiceModal();
+    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : 'WAVを';
+    showToast(`全文を1つの${artifactLabel}書き出しました: ${filePath}`);
+  } catch (e) {
+    showOperationError(e);
+  } finally {
+    setExportButtonsDisabled(false);
+  }
+}
+
 export async function exportAllAudio() {
   const ranges = sentenceRangesFromText(els.editor.value);
   if (ranges.length === 0) {
@@ -375,7 +320,7 @@ export async function exportAllAudio() {
     return;
   }
 
-  els.btnExportAll.disabled = true;
+  setExportButtonsDisabled(true);
   try {
     await persistAppSettings();
     const directory = appState.exportDirectoryEnabled && appState.exportDirectory
@@ -386,6 +331,7 @@ export async function exportAllAudio() {
     const p = activeProject();
     if (!p) return;
     saveActiveSegmentParams();
+    const artifacts = [];
     for (const range of ranges) {
       const buf = await synthesizeRange(p, range);
       const filePath = await bridge.resolveExportFilePath(
@@ -396,7 +342,11 @@ export async function exportAllAudio() {
           companionText: appState.exportTextFileEnabled,
         },
       );
-      await writeExportFiles(filePath, buf, range.text);
+      artifacts.push({ filePath, buf, text: range.text });
+    }
+    // 合成失敗で一部のファイルだけが残らないよう、全件の合成完了後に保存する。
+    for (const artifact of artifacts) {
+      await writeExportFiles(artifact.filePath, artifact.buf, artifact.text);
     }
     closeExportChoiceModal();
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV';
@@ -404,7 +354,7 @@ export async function exportAllAudio() {
   } catch (e) {
     showOperationError(e);
   } finally {
-    els.btnExportAll.disabled = false;
+    setExportButtonsDisabled(false);
   }
 }
 
@@ -434,17 +384,12 @@ export async function exportSelectedAudio() {
     return;
   }
 
-  els.btnExportSelected.disabled = true;
+  setExportButtonsDisabled(true);
   try {
     await persistAppSettings();
     const buf = await synthesizeRange(p, range);
     const defaultName = selectedExportFilename(p.title, range);
-    const filePath = appState.exportDirectoryEnabled && appState.exportDirectory
-      ? await bridge.resolveExportFilePath(appState.exportDirectory, defaultName, {
-          unique: appState.preventExportOverwrite,
-          companionText: appState.exportTextFileEnabled,
-        })
-      : await bridge.saveWavDialog(defaultName);
+    const filePath = await resolveSingleExportPath(defaultName);
     if (!filePath) return;
     await writeExportFiles(filePath, buf, range.text);
     closeExportChoiceModal();
@@ -453,7 +398,7 @@ export async function exportSelectedAudio() {
   } catch (e) {
     showOperationError(e);
   } finally {
-    els.btnExportSelected.disabled = activeSentenceKey == null;
+    setExportButtonsDisabled(false);
   }
 }
 

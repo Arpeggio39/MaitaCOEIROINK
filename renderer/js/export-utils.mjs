@@ -20,6 +20,11 @@ export function selectedExportFilename(projectTitle, range) {
   return `${title}_${snippet}.wav`;
 }
 
+export function combinedExportFilename(projectTitle) {
+  const title = safeFilenameStem(projectTitle || 'export');
+  return `${title}_全文.wav`;
+}
+
 export function textFilePathForWav(filePath) {
   return /\.wav$/i.test(filePath) ? filePath.replace(/\.wav$/i, '.txt') : `${filePath}.txt`;
 }

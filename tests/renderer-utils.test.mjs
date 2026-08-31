@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  combinedExportFilename,
   normalizeExportSettings,
   segmentExportFilename,
   selectedExportFilename,
@@ -52,6 +53,7 @@ test('区切り別のWAV名は安全な連番になり、手動選択名には�
   const range = { index: 1, text: '危険/な:名前？' };
   assert.equal(segmentExportFilename('案件/A', range), '案件_A_002_危険_な_名前？.wav');
   assert.equal(selectedExportFilename('案件/A', range), '案件_A_危険_な_名前？.wav');
+  assert.equal(combinedExportFilename('案件/A'), '案件_A_全文.wav');
   assert.equal(textFilePathForWav('/tmp/VOICE.WAV'), '/tmp/VOICE.txt');
 });
 

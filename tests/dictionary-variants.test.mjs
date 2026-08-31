@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildDictionaryPayload, dictionaryWordVariants } from '../renderer/js/dictionary-variants.mjs';
+import {
+  buildDictionaryPayload,
+  dictionaryWordVariants,
+  normalizeDictionaryYomi,
+} from '../renderer/js/dictionary-variants.mjs';
 
 test('辞書単語は全角半角の表記ゆれを含む', () => {
   const variants = dictionaryWordVariants('Arpeggio');
@@ -21,6 +25,14 @@ test('辞書単語は大文字小文字の表記ゆれを含む', () => {
 test('日本語のみの辞書単語は表記ゆれを増やさない', () => {
   const variants = dictionaryWordVariants('声音の宴');
   assert.deepEqual(variants, ['声音の宴']);
+});
+
+test('ひらがなの読みはCOEIROINK辞書用の全角カタカナへ変換する', () => {
+  assert.equal(normalizeDictionaryYomi('びおん'), 'ビオン');
+  assert.equal(normalizeDictionaryYomi('ﾋﾞｵﾝ'), 'ビオン');
+  const payload = buildDictionaryPayload([{ word: '琵音', yomi: 'びおん', accent: 0 }]);
+  assert.equal(payload.dictionaryWords[0]?.yomi, 'ビオン');
+  assert.equal(payload.dictionaryWords[0]?.numMoras, 3);
 });
 
 test('buildDictionaryPayload は表記ゆれを展開して COEIROINK に送る', () => {
