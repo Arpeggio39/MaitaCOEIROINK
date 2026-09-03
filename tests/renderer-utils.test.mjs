@@ -17,11 +17,14 @@ import {
 import {
   hasPitchEdits,
   hasProsodyPitchEditsState,
+  normalizeIntonationEditorMode,
   pitchEditMask,
   remapEntriesByStableText,
   remapProsodyEntries,
+  resolveIntonationEditorMode,
   shouldReconcileDefaultPitches,
 } from '../renderer/js/prosody-edit-utils.mjs';
+import { exportRangesSequentially } from '../renderer/js/export-sequence.mjs';
 
 test('句読点・空白・改行で文章を順序どおりに区切る', () => {
   const text = 'こんにちは。 次です！\n最後';
@@ -66,6 +69,61 @@ test('保存設定を安全な既定値へ正規化する', () => {
     exportTextEncoding: 'utf8',
   });
   assert.equal(normalizeExportSettings({ exportTextEncoding: 'shift_jis' }).exportTextEncoding, 'shift_jis');
+});
+
+test('イントネーション編集はかんたんを既定にし、既存の詳細編集を維持する', () => {
+  assert.equal(normalizeIntonationEditorMode(null), 'accent');
+  assert.equal(normalizeIntonationEditorMode('pitch'), 'pitch');
+  assert.equal(resolveIntonationEditorMode(null, 'accent'), 'accent');
+  assert.equal(resolveIntonationEditorMode({ pitchEditedByUser: true }, 'accent'), 'pitch');
+  assert.equal(
+    resolveIntonationEditorMode(
+      { pitchEditedByUser: true, intonationEditorMode: 'accent' },
+      'pitch',
+    ),
+    'accent',
+  );
+});
+
+test('区切り別書き出しは1件ずつ準備直後に保存し、区切り固有の失敗後も続行する', async () => {
+  const calls = [];
+  const ranges = [{ text: 'A' }, { text: 'B' }, { text: 'C' }];
+  const result = await exportRangesSequentially(ranges, {
+    prepare: async (range) => {
+      calls.push(`prepare:${range.text}`);
+      if (range.text === 'B') throw new Error('B failed');
+      return range.text.toLowerCase();
+    },
+    save: async (artifact) => {
+      calls.push(`save:${artifact}`);
+    },
+  });
+
+  assert.deepEqual(calls, ['prepare:A', 'save:a', 'prepare:B', 'prepare:C', 'save:c']);
+  assert.equal(result.savedCount, 2);
+  assert.equal(result.failures.length, 1);
+  assert.equal(result.failures[0].index, 1);
+  assert.equal(result.skippedCount, 0);
+});
+
+test('区切り別書き出しは保存失敗後の未処理件数を返して停止する', async () => {
+  const calls = [];
+  const ranges = [{ text: 'A' }, { text: 'B' }, { text: 'C' }];
+  const result = await exportRangesSequentially(ranges, {
+    prepare: async (range) => {
+      calls.push(`prepare:${range.text}`);
+      return range.text.toLowerCase();
+    },
+    save: async (artifact) => {
+      calls.push(`save:${artifact}`);
+      if (artifact === 'b') throw new Error('disk full');
+    },
+  });
+
+  assert.deepEqual(calls, ['prepare:A', 'save:a', 'prepare:B', 'save:b']);
+  assert.equal(result.savedCount, 1);
+  assert.equal(result.failures[0].stage, 'save');
+  assert.equal(result.skippedCount, 1);
 });
 
 test('韻律取得キーは同じ文章位置でもプロジェクトUUIDごとに分離される', () => {

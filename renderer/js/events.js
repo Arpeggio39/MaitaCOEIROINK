@@ -3,6 +3,7 @@ import { els } from './dom.js';
 import { activeSentenceKey } from './state.js';
 import {
   clearSentenceSelection,
+  renderIntonationUI,
   renderSegmentOverlay,
   refreshValueLabels,
   resetActiveSegmentParams,
@@ -19,9 +20,14 @@ import {
   syncActiveProjectFromUi,
 } from './projects.js';
 import { schedulePersist } from './persist.js';
-import { ensureSegmentProsody } from './prosody.js';
+import {
+  ensureSegmentProsody,
+  getSegmentProsody,
+  setProsodyIntonationEditorMode,
+} from './prosody.js';
 import { sentenceRangesFromText } from './segments.js';
 import { activeProject } from './state.js';
+import * as appState from './state.js';
 import {
   closeExportChoiceModal,
   exportAllAudio,
@@ -136,6 +142,22 @@ export function bindEvents() {
   });
 
   els.btnSegmentParamReset.addEventListener('click', () => resetActiveSegmentParams());
+
+  els.intonationEditorModeGroup.addEventListener('change', (ev) => {
+    if (!(ev.target instanceof HTMLInputElement) || ev.target.name !== 'intonationEditorMode') return;
+    appState.setIntonationEditorMode(ev.target.value);
+    const p = activeProject();
+    if (p && activeSentenceKey != null) {
+      const entry = getSegmentProsody(p, activeSentenceKey);
+      if (entry) {
+        setProsodyIntonationEditorMode(entry, appState.intonationEditorMode);
+        bumpActiveUpdatedAt();
+        schedulePersist();
+      }
+    }
+    renderIntonationUI();
+    void persistAppSettings();
+  });
 
   let intonationScrollSyncing = false;
   els.intonationTextStrip.addEventListener('scroll', () => {

@@ -13,6 +13,7 @@ import {
   buildAdjustedF0ForSynthesis,
   ensureProsodyF0Metadata,
   ensureSegmentProsody,
+  getProsodyIntonationEditorMode,
   getSegmentProsody,
   hasProsodyPitchEdits,
   prosodyDetailForApi,
@@ -20,9 +21,10 @@ import {
 import { resolveMaitaStyleId } from './engine.js';
 import { activeProject, activeSentenceKey } from './state.js';
 import * as appState from './state.js';
-import { showOperationError } from './coeiroink-warning.js';
+import { isCoeiroinkRelatedError, showOperationError } from './coeiroink-warning.js';
 import { coerceSampleRate, showToast } from './utils.js';
 import { concatWavBuffers } from './wav-utils.mjs';
+import { exportRangesSequentially } from './export-sequence.mjs';
 import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
 import { getExportSamplingRate, persistAppSettings } from './settings.js';
@@ -49,12 +51,16 @@ async function synthesizeLine(
   signal?.throwIfAborted();
   const styleId = await resolveMaitaStyleId();
   const params = paramsOverride ?? snapshotParamsFromControls(segmentParamControls);
-  if (prosodyOverride?.detail?.length) {
+  const applyDetailedPitch =
+    prosodyOverride?.detail?.length &&
+    getProsodyIntonationEditorMode(prosodyOverride, appState.intonationEditorMode) === 'pitch' &&
+    hasProsodyPitchEdits(prosodyOverride);
+  if (applyDetailedPitch) {
     await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale, signal);
   }
   const detail = prosodyOverride?.detail?.length ? prosodyDetailForApi(prosodyOverride.detail) : [];
   let adjustedF0 = [];
-  if (prosodyOverride && hasProsodyPitchEdits(prosodyOverride)) {
+  if (prosodyOverride && applyDetailedPitch) {
     adjustedF0 = buildAdjustedF0ForSynthesis(prosodyOverride);
     if (!adjustedF0) {
       throw new Error(
@@ -260,19 +266,53 @@ async function playAudio() {
 
 appState.setCancelPlayback(stopPlayback);
 
+let exportInProgress = false;
+
+function setExportProgress(message, kind = '') {
+  els.exportProgress.textContent = message;
+  els.exportProgress.hidden = !message;
+  els.exportProgress.className = `export-progress${kind ? ` is-${kind}` : ''}`;
+}
+
+function exportErrorMessage(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.length > 140 ? `${message.slice(0, 137)}…` : message;
+}
+
+function showExportError(error) {
+  setExportProgress(`書き出しに失敗しました: ${exportErrorMessage(error)}`, 'error');
+  showOperationError(error);
+}
+
+function isLikelyConnectionError(error) {
+  if (isCoeiroinkRelatedError(error)) return true;
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    name === 'AbortError' ||
+    name === 'TimeoutError' ||
+    /fetch failed|failed to fetch|network|econn|timed out|timeout/i.test(message)
+  );
+}
+
 export function openExportChoiceModal() {
   els.btnExportSelected.disabled = activeSentenceKey == null;
+  setExportProgress('');
   els.exportChoiceModal.classList.remove('hidden');
 }
 
-export function closeExportChoiceModal() {
+export function closeExportChoiceModal({ force = false } = {}) {
+  if (exportInProgress && !force) return;
   els.exportChoiceModal.classList.add('hidden');
 }
 
 function setExportButtonsDisabled(disabled) {
+  exportInProgress = disabled;
   els.btnExportCombined.disabled = disabled;
   els.btnExportAll.disabled = disabled;
   els.btnExportSelected.disabled = disabled || activeSentenceKey == null;
+  els.btnExportChoiceDismiss.disabled = disabled;
+  els.exportChoiceModal.setAttribute('aria-busy', String(disabled));
 }
 
 async function resolveSingleExportPath(defaultName) {
@@ -293,21 +333,31 @@ export async function exportCombinedAudio() {
 
   setExportButtonsDisabled(true);
   try {
+    setExportProgress('保存先を確認しています…');
     await persistAppSettings();
     const p = activeProject();
-    if (!p) return;
+    if (!p) {
+      setExportProgress('');
+      return;
+    }
     const filePath = await resolveSingleExportPath(combinedExportFilename(p.title));
-    if (!filePath) return;
+    if (!filePath) {
+      setExportProgress('');
+      return;
+    }
 
     saveActiveSegmentParams();
     const parts = [];
-    for (const range of ranges) parts.push(await synthesizeRange(p, range));
+    for (let index = 0; index < ranges.length; index += 1) {
+      setExportProgress(`${index + 1}/${ranges.length}件目を合成しています…`);
+      parts.push(await synthesizeRange(p, ranges[index]));
+    }
     await writeExportFiles(filePath, concatWavBuffers(parts), els.editor.value);
-    closeExportChoiceModal();
+    closeExportChoiceModal({ force: true });
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : 'WAVを';
     showToast(`全文を1つの${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
-    showOperationError(e);
+    showExportError(e);
   } finally {
     setExportButtonsDisabled(false);
   }
@@ -322,37 +372,67 @@ export async function exportAllAudio() {
 
   setExportButtonsDisabled(true);
   try {
+    setExportProgress('保存先を確認しています…');
     await persistAppSettings();
     const directory = appState.exportDirectoryEnabled && appState.exportDirectory
       ? appState.exportDirectory
       : await bridge.selectExportDirectory();
-    if (!directory) return;
+    if (!directory) {
+      setExportProgress('');
+      return;
+    }
 
     const p = activeProject();
-    if (!p) return;
+    if (!p) {
+      setExportProgress('');
+      return;
+    }
     saveActiveSegmentParams();
-    const artifacts = [];
-    for (const range of ranges) {
-      const buf = await synthesizeRange(p, range);
-      const filePath = await bridge.resolveExportFilePath(
-        directory,
-        segmentExportFilename(p.title, range),
-        {
-          unique: appState.preventExportOverwrite,
-          companionText: appState.exportTextFileEnabled,
-        },
-      );
-      artifacts.push({ filePath, buf, text: range.text });
+    const result = await exportRangesSequentially(ranges, {
+      prepare: async (range) => {
+        const buf = await synthesizeRange(p, range);
+        const filePath = await bridge.resolveExportFilePath(
+          directory,
+          segmentExportFilename(p.title, range),
+          {
+            unique: appState.preventExportOverwrite,
+            companionText: appState.exportTextFileEnabled,
+          },
+        );
+        return { filePath, buf, text: range.text };
+      },
+      save: async (artifact) => {
+        await writeExportFiles(artifact.filePath, artifact.buf, artifact.text);
+      },
+      onProgress: ({ phase, current, total, savedCount }) => {
+        if (phase === 'preparing') {
+          setExportProgress(`${current}/${total}件目を合成しています…`);
+        } else if (phase === 'saved') {
+          setExportProgress(`${savedCount}/${total}件を保存しました`);
+        }
+      },
+      shouldStopOnError: (error) => isLikelyConnectionError(error),
+    });
+
+    if (result.failures.length > 0) {
+      const failedNumbers = result.failures
+        .slice(0, 5)
+        .map((failure) => failure.index + 1)
+        .join('、');
+      const firstError = result.failures[0].error;
+      const skipped = result.skippedCount > 0 ? `、後続${result.skippedCount}件は未処理` : '';
+      const summary =
+        `${result.savedCount}/${ranges.length}件を保存しました。` +
+        `${failedNumbers}件目で失敗${skipped}: ${exportErrorMessage(firstError)}`;
+      setExportProgress(summary, 'error');
+      showOperationError(firstError);
+      return;
     }
-    // 合成失敗で一部のファイルだけが残らないよう、全件の合成完了後に保存する。
-    for (const artifact of artifacts) {
-      await writeExportFiles(artifact.filePath, artifact.buf, artifact.text);
-    }
-    closeExportChoiceModal();
+    closeExportChoiceModal({ force: true });
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV';
     showToast(`${ranges.length}件の${artifactLabel}を書き出しました: ${directory}`);
   } catch (e) {
-    showOperationError(e);
+    showExportError(e);
   } finally {
     setExportButtonsDisabled(false);
   }
@@ -386,17 +466,21 @@ export async function exportSelectedAudio() {
 
   setExportButtonsDisabled(true);
   try {
+    setExportProgress('選択中の文章を合成しています…');
     await persistAppSettings();
     const buf = await synthesizeRange(p, range);
     const defaultName = selectedExportFilename(p.title, range);
     const filePath = await resolveSingleExportPath(defaultName);
-    if (!filePath) return;
+    if (!filePath) {
+      setExportProgress('');
+      return;
+    }
     await writeExportFiles(filePath, buf, range.text);
-    closeExportChoiceModal();
+    closeExportChoiceModal({ force: true });
     const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : '';
     showToast(`${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
-    showOperationError(e);
+    showExportError(e);
   } finally {
     setExportButtonsDisabled(false);
   }

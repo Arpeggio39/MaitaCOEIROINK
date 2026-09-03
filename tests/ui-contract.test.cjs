@@ -27,10 +27,21 @@ test('手動書き出しはヘッダーから選択・全件を選べる', () =>
   assert.match(dom, /btnExportCombined:/);
 });
 
-test('全文を1つのWAVへ結合し、区切り別は全件合成後に保存する', () => {
+test('全文を1つのWAVへ結合し、区切り別は合成直後に順次保存する', () => {
   assert.match(audio, /exportCombinedAudio/);
   assert.match(audio, /concatWavBuffers\(parts\)/);
-  assert.ok(audio.indexOf('artifacts.push') < audio.indexOf('for (const artifact of artifacts)'));
+  assert.match(audio, /exportRangesSequentially/);
+  assert.doesNotMatch(audio, /const artifacts = \[\]/);
+  assert.match(html, /id="exportProgress"[\s\S]*aria-live="polite"/);
+});
+
+test('イントネーションはかんたんと詳細を切り替えられる', () => {
+  assert.match(html, /id="intonationEditorModeGroup"/);
+  assert.match(html, /name="intonationEditorMode" value="accent"/);
+  assert.match(html, /name="intonationEditorMode" value="pitch"/);
+  assert.match(dom, /intonationEditorModeGroup:/);
+  assert.match(rendererScripts, /markProsodyAccentEdited/);
+  assert.match(rendererScripts, /intonationEditorMode/);
 });
 
 test('右サイドバーの文章書き出しボタンは存在しない', () => {
