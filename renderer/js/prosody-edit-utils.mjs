@@ -1,5 +1,25 @@
 const PITCH_EPSILON = 0.001;
 
+export const INTONATION_EDITOR_MODE_DEFAULT = 'accent';
+
+/** @param {unknown} value */
+export function normalizeIntonationEditorMode(value) {
+  return value === 'pitch' ? 'pitch' : INTONATION_EDITOR_MODE_DEFAULT;
+}
+
+/**
+ * 保存済み区切りの選択を優先し、旧データの手動ピッチ編集も詳細モードとして維持する。
+ * @param {{ intonationEditorMode?: unknown, pitchEditedByUser?: boolean } | null | undefined} prosody
+ * @param {unknown} preferredMode
+ */
+export function resolveIntonationEditorMode(prosody, preferredMode = INTONATION_EDITOR_MODE_DEFAULT) {
+  if (prosody?.intonationEditorMode === 'accent' || prosody?.intonationEditorMode === 'pitch') {
+    return prosody.intonationEditorMode;
+  }
+  if (prosody?.pitchEditedByUser) return 'pitch';
+  return normalizeIntonationEditorMode(preferredMode);
+}
+
 /**
  * F0 取得中に行われた編集と、取得前から残っている編集を特定する。
  * @param {number[]} initialPitches

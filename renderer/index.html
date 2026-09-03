@@ -92,6 +92,20 @@
 
           <div id="intonationDock" class="intonation-dock is-inactive" aria-label="イントネーション調整">
             <header class="intonation-dock-head">
+              <div class="intonation-mode-tools">
+                <fieldset id="intonationEditorModeGroup" class="intonation-mode-switch">
+                  <legend class="sr-only">イントネーションの調整方法</legend>
+                  <label>
+                    <input type="radio" name="intonationEditorMode" value="accent" checked />
+                    <span>かんたん</span>
+                  </label>
+                  <label>
+                    <input type="radio" name="intonationEditorMode" value="pitch" />
+                    <span>詳細</span>
+                  </label>
+                </fieldset>
+                <span id="intonationModeHint" class="intonation-mode-hint">文字ごとの高低を切り替えます</span>
+              </div>
               <button type="button" id="btnRegenerateProsody" class="btn-inline-link small">韻律を再取得</button>
             </header>
             <div id="intonationPanel" class="intonation-panel">
@@ -281,6 +295,7 @@
         <button type="button" id="btnExportCombined" class="btn export-choice-button">全文を1つのWAVに書き出す</button>
         <button type="button" id="btnExportSelected" class="btn export-choice-button">選択中の文章を書き出す</button>
         <button type="button" id="btnExportAll" class="btn export-choice-button">全文章を区切りごとに書き出す</button>
+        <p id="exportProgress" class="export-progress" role="status" aria-live="polite" hidden></p>
         <p class="settings-note">書き出し設定に従い、WAVと必要に応じて同名のtxtを保存します。</p>
       </div>
     </div>

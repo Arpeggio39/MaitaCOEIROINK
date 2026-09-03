@@ -4,6 +4,7 @@ import { els } from './dom.js';
 import * as appState from './state.js';
 import { coerceSampleRate, showToast } from './utils.js';
 import { normalizeExportSettings } from './export-utils.mjs';
+import { normalizeIntonationEditorMode } from './prosody-edit-utils.mjs';
 
 export function getExportSamplingRate() {
   return coerceSampleRate(Number(els.exportSamplingRate.value) || appState.exportSamplingRate);
@@ -11,6 +12,14 @@ export function getExportSamplingRate() {
 
 export function applyExportSamplingRateToControl() {
   els.exportSamplingRate.value = String(coerceSampleRate(appState.exportSamplingRate));
+}
+
+export function applyIntonationEditorModeToControl(mode = appState.intonationEditorMode) {
+  const normalized = normalizeIntonationEditorMode(mode);
+  const radio = els.intonationEditorModeGroup.querySelector(
+    `input[name="intonationEditorMode"][value="${normalized}"]`,
+  );
+  if (radio) radio.checked = true;
 }
 
 export function applyExportSettingsToControls() {
@@ -36,6 +45,10 @@ export async function persistAppSettings() {
   appState.setExportTextFileEnabled(els.exportTextFileEnabled.checked);
   const selectedEncoding = els.exportTextEncodingGroup.querySelector('input[name="exportTextEncoding"]:checked')?.value;
   appState.setExportTextEncoding(selectedEncoding);
+  const selectedIntonationMode = els.intonationEditorModeGroup.querySelector(
+    'input[name="intonationEditorMode"]:checked',
+  )?.value;
+  appState.setIntonationEditorMode(selectedIntonationMode);
   await bridge.saveAppSettings({
     exportSamplingRate: rate,
     exportDirectory: appState.exportDirectory,
@@ -43,6 +56,7 @@ export async function persistAppSettings() {
     preventExportOverwrite: appState.preventExportOverwrite,
     exportTextFileEnabled: appState.exportTextFileEnabled,
     exportTextEncoding: appState.exportTextEncoding,
+    intonationEditorMode: appState.intonationEditorMode,
   });
 }
 
@@ -58,6 +72,7 @@ export async function loadAppSettingsFromDisk() {
     appState.setPreventExportOverwrite(settings.preventExportOverwrite);
     appState.setExportTextFileEnabled(settings.exportTextFileEnabled);
     appState.setExportTextEncoding(settings.exportTextEncoding);
+    appState.setIntonationEditorMode(blob?.intonationEditorMode);
   } catch (_) {
     appState.setExportSamplingRate(EXPORT_SAMPLE_RATE_DEFAULT);
     appState.setExportDirectory('');
@@ -65,9 +80,11 @@ export async function loadAppSettingsFromDisk() {
     appState.setPreventExportOverwrite(false);
     appState.setExportTextFileEnabled(false);
     appState.setExportTextEncoding('utf8');
+    appState.setIntonationEditorMode('accent');
   }
   applyExportSamplingRateToControl();
   applyExportSettingsToControls();
+  applyIntonationEditorModeToControl();
 }
 
 export function openExportSettingsModal() {

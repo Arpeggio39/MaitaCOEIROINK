@@ -1,10 +1,14 @@
 import { EXPORT_SAMPLE_RATE_DEFAULT } from './constants.js';
+import {
+  INTONATION_EDITOR_MODE_DEFAULT,
+  normalizeIntonationEditorMode,
+} from './prosody-edit-utils.mjs';
 
 /** @typedef {Record<string, number|string>} ParamSet */
 /** @typedef {{ key: string, start: number, end: number, text: string, index: number }} SentenceRange */
 /** @typedef {{ phoneme: string, hira: string, accent: number, pitch?: number }} SegmentMora */
 /** @typedef {{ start: number, end: number }} MoraWavRange */
-/** @typedef {{ text: string, detail: SegmentMora[][], baseF0?: number[], baselinePitch?: number[], moraWavRanges?: MoraWavRange[], f0TotalSamples?: number, f0SpeedScale?: number, pitchEditedByUser?: boolean }} SegmentProsody */
+/** @typedef {{ text: string, detail: SegmentMora[][], baseF0?: number[], baselinePitch?: number[], moraWavRanges?: MoraWavRange[], f0TotalSamples?: number, f0SpeedScale?: number, pitchEditedByUser?: boolean, intonationEditorMode?: 'accent' | 'pitch' }} SegmentProsody */
 /** @typedef {{ id: string, title: string, text: string, titleEdited?: boolean, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, sentenceProsodyByKey?: Record<string, SegmentProsody>, updatedAt: string }} Project */
 
 /** @type {Project[]} */
@@ -41,6 +45,8 @@ export let preventExportOverwrite = false;
 export let exportTextFileEnabled = false;
 /** @type {'utf8' | 'shift_jis'} */
 export let exportTextEncoding = 'utf8';
+/** @type {'accent' | 'pitch'} */
+export let intonationEditorMode = INTONATION_EDITOR_MODE_DEFAULT;
 
 /** 琵音マイタの API styleId */
 /** @type {number | null} */
@@ -115,6 +121,10 @@ export function setExportTextFileEnabled(enabled) {
 
 export function setExportTextEncoding(encoding) {
   exportTextEncoding = encoding === 'shift_jis' ? 'shift_jis' : 'utf8';
+}
+
+export function setIntonationEditorMode(mode) {
+  intonationEditorMode = normalizeIntonationEditorMode(mode);
 }
 
 export function setMaitaStyleId(styleId) {

@@ -19,8 +19,10 @@ import {
   buildHiraganaCellsFromDetail,
   buildMoraSpansFromDetail,
   ensureSegmentProsody,
+  getProsodyIntonationEditorMode,
   getMoraPitch,
   getSegmentProsody,
+  markProsodyAccentEdited,
   markProsodyPitchEdited,
   remapSentenceProsody,
   scheduleProsodyForRanges,
@@ -30,6 +32,7 @@ import {
 import {
   activeProject,
   activeSentenceKey,
+  intonationEditorMode,
   lastSentenceRanges,
   setActiveSentenceKey,
   setRefreshIntonationUi,
@@ -37,6 +40,7 @@ import {
 import { escapeHtml } from './utils.js';
 import { bumpActiveUpdatedAt, setEditorHooks } from './projects.js';
 import { schedulePersist } from './persist.js';
+import { applyIntonationEditorModeToControl } from './settings.js';
 
 export function updateSegmentPanelsVisibility() {
   const hasSelection = activeSentenceKey != null;
@@ -174,6 +178,7 @@ export function renderIntonationUI() {
   els.intonationSliderStrip.innerHTML = '';
   els.intonationContent.hidden = false;
   els.btnRegenerateProsody.disabled = key == null;
+  els.intonationEditorModeGroup.disabled = key == null;
 
   if (!p || key == null) {
     els.intonationContent.hidden = true;
@@ -182,6 +187,13 @@ export function renderIntonationUI() {
 
   const entry = getSegmentProsody(p, key);
   if (!entry?.detail?.length) return;
+
+  const editorMode = getProsodyIntonationEditorMode(entry, intonationEditorMode);
+  applyIntonationEditorModeToControl(editorMode);
+  els.intonationModeHint.textContent =
+    editorMode === 'accent'
+      ? '文字ごとの高低を切り替えます'
+      : '細かなピッチ変更は音質が劣化する場合があります';
 
   const cells = buildHiraganaCellsFromDetail(entry.detail);
   if (!cells.length) return;
@@ -227,6 +239,44 @@ export function renderIntonationUI() {
   }
 
   els.intonationSliderStrip.style.gridTemplateColumns = gridCols;
+
+  if (editorMode === 'accent') {
+    els.intonationSliderStrip.classList.add('is-accent-mode');
+    els.intonationSliderStrip.setAttribute('aria-label', '文字ごとのアクセント（高・低）');
+    for (const span of moraSpans) {
+      const col = document.createElement('div');
+      col.className = 'intonation-char-col intonation-accent-col';
+      col.style.gridColumn = `${span.charStart + 1} / ${span.charEnd + 1}`;
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      const syncButton = () => {
+        const isHigh = Number(span.mora.accent) === 1;
+        button.className = `intonation-accent-button ${isHigh ? 'is-high' : 'is-low'}`;
+        button.textContent = isHigh ? '高' : '低';
+        button.setAttribute(
+          'aria-label',
+          `${span.mora.hira || ''}のアクセントは${isHigh ? '高' : '低'}。クリックで切り替え`,
+        );
+        button.setAttribute('aria-pressed', String(isHigh));
+      };
+      syncButton();
+      button.addEventListener('click', () => {
+        span.mora.accent = Number(span.mora.accent) === 1 ? 0 : 1;
+        markProsodyAccentEdited(entry);
+        syncButton();
+        bumpActiveUpdatedAt();
+        schedulePersist();
+      });
+
+      col.appendChild(button);
+      els.intonationSliderStrip.appendChild(col);
+    }
+    return;
+  }
+
+  els.intonationSliderStrip.classList.remove('is-accent-mode');
+  els.intonationSliderStrip.setAttribute('aria-label', '文字ごとの詳細ピッチ');
 
   /** @type {Map<import('./state.js').SegmentMora, { sliders: HTMLInputElement[], pitchVals: HTMLElement[] }>} */
   const moraUi = new Map();

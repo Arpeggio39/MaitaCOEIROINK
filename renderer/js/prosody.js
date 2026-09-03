@@ -28,7 +28,9 @@ import { prosodyRequestKey } from './prosody-request-key.mjs';
 import {
   hasProsodyPitchEditsState,
   pitchEditMask,
+  normalizeIntonationEditorMode,
   remapProsodyEntries,
+  resolveIntonationEditorMode,
   shouldReconcileDefaultPitches,
 } from './prosody-edit-utils.mjs';
 
@@ -87,6 +89,33 @@ export function prosodyDetailForApi(detail) {
  */
 export function markProsodyPitchEdited(prosody) {
   prosody.pitchEditedByUser = true;
+  prosody.intonationEditorMode = 'pitch';
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody} prosody
+ * @param {unknown} mode
+ */
+export function setProsodyIntonationEditorMode(prosody, mode) {
+  prosody.intonationEditorMode = normalizeIntonationEditorMode(mode);
+}
+
+/**
+ * アクセント変更後は、変更前のアクセントから推定した F0 基準値だけを破棄する。
+ * 詳細ピッチの値自体は残すため、詳細モードへ戻したときに再取得して復元できる。
+ * @param {import('./state.js').SegmentProsody} prosody
+ */
+export function markProsodyAccentEdited(prosody) {
+  prosody.intonationEditorMode = 'accent';
+  clearF0Metadata(prosody);
+}
+
+/**
+ * @param {import('./state.js').SegmentProsody | null | undefined} prosody
+ * @param {unknown} preferredMode
+ */
+export function getProsodyIntonationEditorMode(prosody, preferredMode) {
+  return resolveIntonationEditorMode(prosody, preferredMode);
 }
 
 /**
