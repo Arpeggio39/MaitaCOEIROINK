@@ -41,7 +41,7 @@ import {
  * @param {import('./state.js').SegmentProsody | null} [prosodyOverride]
  * @param {number} [outputSamplingRate]
  */
-async function synthesizeLine(
+export async function synthesizeLine(
   textLine,
   paramsOverride,
   prosodyOverride = null,
@@ -55,7 +55,11 @@ async function synthesizeLine(
     prosodyOverride?.detail?.length &&
     getProsodyIntonationEditorMode(prosodyOverride, appState.intonationEditorMode) === 'pitch' &&
     hasProsodyPitchEdits(prosodyOverride);
-  if (applyDetailedPitch) {
+  const needsGlobalPitch = Number(params.pitchScale) !== 0 || Number(params.intonationScale) !== 1;
+  if (applyDetailedPitch || needsGlobalPitch) {
+    if (!prosodyOverride?.detail?.length) {
+      throw new Error('声の高さ・抑揚を調整するための韻律がありません。「韻律を再取得」を試してください。');
+    }
     await ensureProsodyF0Metadata(textLine, prosodyOverride, params.speedScale, signal);
   }
   const detail = prosodyOverride?.detail?.length ? prosodyDetailForApi(prosodyOverride.detail) : [];
@@ -66,6 +70,11 @@ async function synthesizeLine(
       throw new Error(
         'ピッチ調整を合成に反映できませんでした。文章を選択して「韻律を再取得」を試してください。',
       );
+    }
+  } else if (needsGlobalPitch) {
+    adjustedF0 = prosodyOverride?.baseF0 ? [...prosodyOverride.baseF0] : [];
+    if (!adjustedF0.length) {
+      throw new Error('声の高さ・抑揚を調整するためのピッチ取得に失敗しました。「韻律を再取得」を試してください。');
     }
   }
   const body = buildSynthesisPayload({

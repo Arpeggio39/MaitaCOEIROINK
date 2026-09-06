@@ -1,4 +1,3 @@
-import { PARAM_DEFAULTS } from './constants.js';
 import { bridge } from './bridge.js';
 import { initCoeiroinkStatus } from './coeiroink-status.js';
 import { initEditor, refreshValueLabels, updateSegmentPanelsVisibility } from './editor.js';
@@ -27,6 +26,7 @@ async function boot() {
   await loadAppSettingsFromDisk();
 
   const blob = await bridge.loadProjects();
+  appState.setDefaultParams(blob?.defaultParams);
   if (blob?.__openMaitaLoadError) {
     showToast('保存データが破損しているため、復旧用ファイルを保存して新規起動しました。', 8000);
   }
@@ -45,7 +45,7 @@ async function boot() {
         id: crypto.randomUUID(),
         title: '無題',
         text: '',
-        params: { ...PARAM_DEFAULTS },
+        params: { ...appState.defaultParams },
         sentenceParamsByKey: {},
         sentenceProsodyByKey: {},
         updatedAt: now,

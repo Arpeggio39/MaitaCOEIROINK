@@ -1,5 +1,5 @@
 import { bridge } from './bridge.js';
-import { activeId, projects, saveTimer, setSaveTimer } from './state.js';
+import { defaultParams, activeId, projects, saveTimer, setSaveTimer } from './state.js';
 
 /** @type {(() => void) | null} */
 let syncUiBeforeSave = null;
@@ -17,12 +17,12 @@ export async function persistProjects() {
   clearTimeout(saveTimer);
   setSaveTimer(null);
   syncUiBeforeSave?.();
-  await bridge.saveProjects({ projects, activeId });
+  await bridge.saveProjects({ projects, activeId, defaultParams });
 }
 
 export function flushProjectsSync() {
   clearTimeout(saveTimer);
   setSaveTimer(null);
   syncUiBeforeSave?.();
-  bridge.saveProjectsSync({ projects, activeId });
+  bridge.saveProjectsSync({ projects, activeId, defaultParams });
 }

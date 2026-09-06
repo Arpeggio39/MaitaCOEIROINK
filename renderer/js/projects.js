@@ -2,8 +2,9 @@ import { PARAM_DEFAULTS } from './constants.js';
 import { cloneParams } from './params.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
-import { migrateSentenceParamsForProject } from './segments.js';
+import { migrateSentenceParamsForProject, sentenceRangesFromText } from './segments.js';
 import {
+  defaultParams,
   activeId,
   activeProject,
   activeSentenceKey,
@@ -108,6 +109,9 @@ export function migrateProjects(list) {
     if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
     if (p.titleEdited == null) p.titleEdited = false;
     migrateSentenceParamsForProject(p);
+    for (const range of sentenceRangesFromText(p.text || '')) {
+      if (!p.sentenceParamsByKey[range.key]) p.sentenceParamsByKey[range.key] = cloneParams(p.params);
+    }
   }
 }
 
@@ -211,7 +215,7 @@ export function newProject() {
     id: crypto.randomUUID(),
     title: '無題',
     text: '',
-    params: { ...PARAM_DEFAULTS },
+    params: cloneParams(defaultParams),
     sentenceParamsByKey: {},
     sentenceProsodyByKey: {},
     updatedAt: now,

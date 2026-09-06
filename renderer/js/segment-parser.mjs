@@ -1,4 +1,7 @@
-const SEGMENT_PUNCT_RE = /[。、．.,!?！？…：:；;「」『』【】()（）\[\]{}'"‘’“”〜～]/u;
+// 文末記号だけでなく、チャット由来の連続感嘆符・疑問符も1区切りとして扱う。
+// Unicode の文末記号（？、！、⁇、⁈、⁉、⸮ など）も区切りにする。
+// 既存の括弧・空白区切りも維持するため、文末記号プロパティに既存記号を加える。
+const SEGMENT_PUNCT_RE = /[\p{Sentence_Terminal}。、．.,!?！？‼⁇⁈⁉⸮…：:；;「」『』【】()（）\[\]{}'"‘’“”〜～]/u;
 const SEGMENT_OPEN_RE = /[「『【(（\[{‘“]/u;
 
 export function isSegmentPunctuation(ch) {

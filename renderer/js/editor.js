@@ -31,6 +31,8 @@ import {
 } from './prosody.js';
 import {
   activeProject,
+  defaultParams,
+  setDefaultParams,
   activeSentenceKey,
   intonationEditorMode,
   lastSentenceRanges,
@@ -48,12 +50,13 @@ export function updateSegmentPanelsVisibility() {
   els.intonationDock.classList.toggle('is-inactive', !hasSelection);
 }
 
-export function saveActiveSegmentParams({ persist = true } = {}) {
+export function saveActiveSegmentParams({ persist = true, rememberDefaults = false } = {}) {
   if (activeSentenceKey == null) return;
   const p = activeProject();
   if (!p) return;
   if (!p.sentenceParamsByKey) p.sentenceParamsByKey = {};
   const saved = snapshotParamsFromControls(segmentParamControls);
+  if (rememberDefaults) setDefaultParams(saved);
   const base = cloneParams(p.params);
   const previous = p.sentenceParamsByKey[activeSentenceKey];
   let changed = false;
@@ -68,7 +71,7 @@ export function saveActiveSegmentParams({ persist = true } = {}) {
       changed = true;
     }
   }
-  if (!changed) return;
+  if (!changed && !rememberDefaults) return;
   bumpActiveUpdatedAt();
   if (persist) schedulePersist();
 }
@@ -107,7 +110,8 @@ export function resetActiveSegmentParams() {
   const p = activeProject();
   if (!p) return;
   if (p.sentenceParamsByKey) delete p.sentenceParamsByKey[activeSentenceKey];
-  applyParamsToControls(segmentParamControls, p.params);
+  applyParamsToControls(segmentParamControls, PARAM_DEFAULTS);
+  saveActiveSegmentParams({ rememberDefaults: true });
   refreshValueLabelsFor(segmentParamControls);
   if (p.sentenceProsodyByKey) delete p.sentenceProsodyByKey[activeSentenceKey];
   const range = sentenceRangesFromText(els.editor.value).find((r) => r.key === activeSentenceKey);
@@ -338,6 +342,9 @@ export function renderSegmentOverlay() {
       remapSentenceProsody(p, lastSentenceRanges, ranges);
     } else {
       migrateSentenceParamsForProject(p);
+      for (const range of ranges) {
+        if (!p.sentenceParamsByKey[range.key]) p.sentenceParamsByKey[range.key] = cloneParams(defaultParams);
+      }
     }
     if (!p.sentenceProsodyByKey) p.sentenceProsodyByKey = {};
     scheduleProsodyForRanges(p, ranges);
@@ -348,6 +355,11 @@ export function renderSegmentOverlay() {
   if (activeSentenceKey != null && !ranges.some((r) => r.key === activeSentenceKey)) {
     setActiveSentenceKey(null);
     updateSegmentPanelsVisibility();
+  }
+
+  if (p && activeSentenceKey != null) {
+    applyParamsToControls(segmentParamControls, getSentenceParams(p, activeSentenceKey));
+    refreshValueLabelsFor(segmentParamControls);
   }
 
   els.segmentMirror.innerHTML = buildMirrorHtml(text, ranges);

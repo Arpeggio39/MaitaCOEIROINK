@@ -1,3 +1,4 @@
+import { cloneParams } from './params.js';
 import { EXPORT_SAMPLE_RATE_DEFAULT } from './constants.js';
 import {
   INTONATION_EDITOR_MODE_DEFAULT,
@@ -10,6 +11,11 @@ import {
 /** @typedef {{ start: number, end: number }} MoraWavRange */
 /** @typedef {{ text: string, detail: SegmentMora[][], baseF0?: number[], baselinePitch?: number[], moraWavRanges?: MoraWavRange[], f0TotalSamples?: number, f0SpeedScale?: number, pitchEditedByUser?: boolean, intonationEditorMode?: 'accent' | 'pitch' }} SegmentProsody */
 /** @typedef {{ id: string, title: string, text: string, titleEdited?: boolean, params: ParamSet, sentenceParamsByKey?: Record<string, ParamSet>, sentenceProsodyByKey?: Record<string, SegmentProsody>, updatedAt: string }} Project */
+
+export let defaultParams = cloneParams();
+export function setDefaultParams(params) {
+  defaultParams = cloneParams(params);
+}
 
 /** @type {Project[]} */
 export let projects = [];

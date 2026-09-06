@@ -128,7 +128,7 @@ export function bindEvents() {
     els[id].addEventListener('input', () => {
       if (activeSentenceKey == null) return;
       refreshValueLabels();
-      saveActiveSegmentParams();
+      saveActiveSegmentParams({ rememberDefaults: true });
       renderSegmentOverlay();
     });
   }
@@ -137,7 +137,7 @@ export function bindEvents() {
 
   els.processingAlgorithm.addEventListener('change', () => {
     if (activeSentenceKey == null) return;
-    saveActiveSegmentParams();
+    saveActiveSegmentParams({ rememberDefaults: true });
     renderSegmentOverlay();
   });
 

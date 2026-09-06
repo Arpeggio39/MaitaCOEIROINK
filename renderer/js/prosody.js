@@ -497,12 +497,14 @@ export async function ensureProsodyF0Metadata(text, entry, speedScale = 1, signa
       entry.pitchEditedByUser = true;
     }
   } catch (e) {
+    signal?.throwIfAborted();
     if (hasProsodyPitchEdits(entry)) {
       throw new Error(
         'ピッチ調整を反映するための F0 取得に失敗しました。COEIROINK の状態を確認して「韻律を再取得」を試してください。',
         { cause: e },
       );
     }
+    throw new Error('声の高さ・抑揚を調整するためのピッチ取得に失敗しました。「韻律を再取得」を試してください。', { cause: e });
   }
 }
 
