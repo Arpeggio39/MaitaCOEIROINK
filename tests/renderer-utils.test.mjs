@@ -37,6 +37,20 @@ test('句読点・空白・改行で文章を順序どおりに区切る', () =>
   assert.equal(findRangeAtCursor(7, ranges)?.text, '次です！');
 });
 
+test('全角・半角および連続感嘆疑問符で区切る', () => {
+  assert.deepEqual(
+    sentenceRangesFromText('まず! 次‼ どう⁉ 最後').map((range) => range.text),
+    ['まず!', '次‼', 'どう⁉', '最後'],
+  );
+});
+
+test('Unicode の疑問・感嘆系文末記号で区切る', () => {
+  assert.deepEqual(
+    sentenceRangesFromText('本当⁇ まさか⁈ そう⁉ えっ⸮ 終わり').map((range) => range.text),
+    ['本当⁇', 'まさか⁈', 'そう⁉', 'えっ⸮', '終わり'],
+  );
+});
+
 test('空の入力や区切り文字だけの入力では文章を生成しない', () => {
   assert.deepEqual(sentenceRangesFromText(''), []);
   assert.deepEqual(sentenceRangesFromText('  \n\t'), []);

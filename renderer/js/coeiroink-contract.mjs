@@ -112,7 +112,8 @@ export function buildSynthesisPayload(input) {
     postPhonemeLength: requireFiniteNumber(input.params.postPhonemeLength, 'postPhonemeLength'),
     outputSamplingRate: requireInteger(input.outputSamplingRate, 'outputSamplingRate'),
     processingAlgorithm: normalizeProcessingAlgorithm(input.params.processingAlgorithm),
-    sampledIntervalValue: adjustedF0.length > 0 ? ADJUSTED_F0_SAMPLE_INTERVAL : 0,
+    // F0 未編集でも声の高さ・抑揚の加工で使用されるため、0 を渡さない。
+    sampledIntervalValue: ADJUSTED_F0_SAMPLE_INTERVAL,
     adjustedF0,
   };
 }

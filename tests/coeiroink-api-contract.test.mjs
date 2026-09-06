@@ -74,7 +74,7 @@ test('全ての使用中 POST API ペイロードが同梱 OpenAPI と一致す�
   assertTopLevelContract('/v1/set_dictionary', dictionary);
 });
 
-test('編集済み F0 は公式 UI と同じ3サンプル間隔で合成する', () => {
+test('F0 未編集でも公式 UI と同じ正のサンプル間隔で合成する', () => {
   const common = {
     speakerUuid: '24e48b20-c14c-11f0-a12e-0242ac1c000c',
     styleId: 302790798,
@@ -83,7 +83,14 @@ test('編集済み F0 は公式 UI と同じ3サンプル間隔で合成する',
     params: cloneParams({}),
     outputSamplingRate: 44100,
   };
-  assert.equal(buildSynthesisPayload({ ...common, adjustedF0: [] }).sampledIntervalValue, 0);
+  assert.equal(buildSynthesisPayload({ ...common, adjustedF0: [] }).sampledIntervalValue, 3);
+  for (const params of [cloneParams({ pitchScale: 0.1 }), cloneParams({ intonationScale: 0.5 })]) {
+    const payload = buildSynthesisPayload({ ...common, params });
+    assert.equal(payload.sampledIntervalValue, 3);
+    assert.deepEqual(payload.adjustedF0, []);
+    assert.equal(payload.pitchScale, params.pitchScale);
+    assert.equal(payload.intonationScale, params.intonationScale);
+  }
   assert.equal(
     buildSynthesisPayload({ ...common, adjustedF0: [0, 220, 221] }).sampledIntervalValue,
     ADJUSTED_F0_SAMPLE_INTERVAL,

@@ -1,5 +1,6 @@
+import { defaultParams } from './state.js';
 import { PARAM_DEFAULTS } from './constants.js';
-import { cloneParams } from './params.js';
+import { cloneParams, paramsEqual } from './params.js';
 import {
   findRangeAtCursor,
   isSegmentPunctuation,
@@ -34,8 +35,13 @@ export function migrateSentenceParamsForProject(project) {
  * @param {import('./state.js').SentenceRange[]} newRanges
  */
 export function remapSentenceParams(project, prevRanges, newRanges) {
-  const oldMap = project.sentenceParamsByKey || {};
+  const oldMap = Object.fromEntries(prevRanges.map((range) => [
+    range.key, getSentenceParams(project, range.key),
+  ]));
   const remapped = remapEntriesByStableText(oldMap, prevRanges, newRanges);
+  for (const range of newRanges) {
+    if (!Object.hasOwn(remapped, range.key)) remapped[range.key] = cloneParams(defaultParams);
+  }
   project.sentenceParamsByKey = Object.fromEntries(
     Object.entries(remapped).map(([key, params]) => [key, cloneParams(params)]),
   );
@@ -57,5 +63,6 @@ export function getSentenceParams(project, key) {
  * @param {string} key
  */
 export function hasCustomSentenceParams(project, key) {
-  return !!(project?.sentenceParamsByKey?.[key]);
+  const custom = project?.sentenceParamsByKey?.[key];
+  return !!custom && !paramsEqual(custom, project.params);
 }
