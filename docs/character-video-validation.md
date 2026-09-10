@@ -101,3 +101,9 @@
 - Parameter/part/opacity snapshots replay the exact analyzed poses during encoding, including NVENC resource retries; physics is not simulated a second time.
 - Actual 419-frame bold-motion export: H.264/AAC, 318x676. All four 2-pixel borders contained zero non-green pixels across the complete video. A rendered frame was visually checked.
 - Unit suite: 98 passing tests. Local Mac confirms WebGL analysis and CPU encoding; NVIDIA NVENC concurrency still requires NVIDIA hardware validation.
+
+## C SIMD audio analysis
+
+- Replaced per-sample RMS energy accumulation with a bundled C/WebAssembly SIMD kernel. Stereo channels remain independent, and double-precision sums match the reference within 1e-6. Empty input, short windows and 22.05/44.1/48 kHz are covered.
+- 102 local tests passed. Actual Electron Worker successfully fetched and instantiated the packaged kernel under the app policy. A fresh 419-frame real-engine motion export passed after integration.
+- A 60-second stereo 48 kHz warmed local comparison measured about 5–8 ms for JS and 3–6 ms for the C path including input copies and normalization. This is not a full-export speed claim.

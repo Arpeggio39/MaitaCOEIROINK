@@ -39,6 +39,14 @@ const text = 'アップデート後も保存した文章が残ります。';
         const buffer = Uint8Array.from(atob(bytes), c => c.charCodeAt(0)).buffer;
         return (await import('./js/character-video-host.js')).exportNarrationVideo(buffer, wav);
       }, { wav, bytes });
+      // Verify the packaged C kernel loads under the actual compute Worker's policy.
+      const worker = page.workers()[0];
+      assert.ok(worker, 'Audio compute worker is running');
+      assert.equal(await worker.evaluate(async () => {
+        const response = await fetch(new URL('../wasm/lip-energy.wasm', location.href));
+        const module = await WebAssembly.compile(await response.arrayBuffer());
+        return typeof (await WebAssembly.instantiate(module)).exports.accumulate;
+      }), 'function');
       const result = execFileSync(ffmpeg, ['-v', 'error', '-i', video, '-f', 'null', '-'], { encoding: 'utf8' });
       assert.equal(result, '');
       assert.ok((await fs.stat(video)).size > 1000);
