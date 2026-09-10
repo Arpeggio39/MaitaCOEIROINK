@@ -146,3 +146,24 @@ export async function saveDictionaryFromModal() {
     els.btnDictApply.disabled = false;
   }
 }
+
+export async function addDefaultDictionaryRows() {
+  const button = document.getElementById('btnDictDefaults');
+  button.disabled = true;
+  try {
+    const rows = readDictionaryFromDom();
+    const defaults = await bridge.loadDefaultDictionary();
+    const words = new Set(rows.map(row => row.word.normalize('NFKC').toLowerCase()));
+    const additions = normalizeDictionaryEntries(defaults.dictionaryWords).filter(row => {
+      const key = row.word.normalize('NFKC').toLowerCase();
+      if (words.has(key)) return false;
+      words.add(key);
+      return true;
+    });
+    if (rows.length === 0) els.dictionaryRows.innerHTML = '';
+    for (const row of additions) appendDictionaryRow(row);
+    showToast(additions.length ? `初期辞書を${additions.length}件追加しました。「保存」で反映します。` : '初期辞書は追加済みです。');
+  } catch (error) {
+    showOperationError(error);
+  } finally { button.disabled = false; }
+}

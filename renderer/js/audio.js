@@ -1,3 +1,5 @@
+import { wavDuration } from './motion-timing.mjs';
+import { selectedMotion } from './motion-file.js';
 import {
   MAITA_UUID,
   PLAYBACK_SAMPLE_RATE,
@@ -23,8 +25,8 @@ import { activeProject, activeSentenceKey } from './state.js';
 import * as appState from './state.js';
 import { isCoeiroinkRelatedError, showOperationError } from './coeiroink-warning.js';
 import { coerceSampleRate, showToast } from './utils.js';
-import { concatWavBuffers } from './wav-utils.mjs';
-import { exportRangesSequentially } from './export-sequence.mjs';
+import { exportRangesPipelined, exportRangesConcurrent } from './parallel.mjs';
+import { compute } from './compute-pool.js';
 import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
 import { getExportSamplingRate, persistAppSettings } from './settings.js';
@@ -41,6 +43,15 @@ import {
  * @param {import('./state.js').SegmentProsody | null} [prosodyOverride]
  * @param {number} [outputSamplingRate]
  */
+const timingAudioCache = new Map();
+let captureTimingAudio = false;
+export async function prepareTimingNarration(signal, all) {
+  const capture = Symbol();
+  timingAudioCache.clear(); captureTimingAudio = capture;
+  try { return await buildPlaybackUtterance(getExportSamplingRate(), signal, { all }); }
+  finally { if (captureTimingAudio === capture) captureTimingAudio = false; }
+}
+
 export async function synthesizeLine(
   textLine,
   paramsOverride,
@@ -86,6 +97,9 @@ export async function synthesizeLine(
     outputSamplingRate: coerceSampleRate(outputSamplingRate),
     adjustedF0,
   });
+  const capture = captureTimingAudio;
+  const cacheKey = JSON.stringify([body, appState.dictionaryEntries]);
+  if (timingAudioCache.has(cacheKey)) return timingAudioCache.get(cacheKey).slice(0);
   const res = await postCoeiroink(
     '/v1/synthesis',
     {
@@ -100,32 +114,39 @@ export async function synthesizeLine(
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(errText || `HTTP ${res.status}`);
   }
-  return res.arrayBuffer();
+  const buffer = await res.arrayBuffer();
+  if (capture && captureTimingAudio === capture) timingAudioCache.set(cacheKey, buffer.slice(0));
+  return buffer;
 }
 
-async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal) {
+export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal, { all = false } = {}) {
   saveActiveSegmentParams();
   const p = activeProject();
   const allRanges = sentenceRangesFromText(els.editor.value);
-  const ranges = playbackRangesForSelection(allRanges, activeSentenceKey);
+  const ranges = all ? allRanges : playbackRangesForSelection(allRanges, activeSentenceKey);
   if (ranges.length === 0) {
     throw new Error('読み上げるテキストがありません（句読点・スペース・改行で区切られた部分が必要です）。');
   }
   /** @type {ArrayBuffer[]} */
   const parts = [];
-  for (const r of ranges) {
-    signal?.throwIfAborted();
-    const params = getSentenceParams(p, r.key);
-    let prosody = getSegmentProsody(p, r.key);
-    if (!prosody || prosody.text !== r.text.trim()) {
-      await ensureSegmentProsody(p, r.key, r.text);
+  const result = await exportRangesPipelined(ranges, {
+    prepare: async r => {
       signal?.throwIfAborted();
-      prosody = getSegmentProsody(p, r.key);
-    }
-    const wav = await synthesizeLine(r.text, params, prosody, outputSamplingRate, signal);
-    parts.push(wav);
-  }
-  return concatWavBuffers(parts);
+      const params = getSentenceParams(p, r.key);
+      let prosody = getSegmentProsody(p, r.key);
+      if (!prosody || prosody.text !== r.text.trim()) {
+        await ensureSegmentProsody(p, r.key, r.text);
+        signal?.throwIfAborted();
+        prosody = getSegmentProsody(p, r.key);
+      }
+      return synthesizeLine(r.text, params, prosody, outputSamplingRate, signal);
+    },
+    save: (wav, range, index) => { parts[index] = wav; },
+    shouldStopOnError: () => true,
+  });
+  if (result.failures.length) throw result.failures[0].error;
+  signal?.throwIfAborted();
+  return compute('concat', parts, parts);
 }
 
 export function resizeWaveformCanvas() {
@@ -276,8 +297,11 @@ async function playAudio() {
 appState.setCancelPlayback(stopPlayback);
 
 let exportInProgress = false;
+let exportFailed = false;
 
 function setExportProgress(message, kind = '') {
+  if (kind === 'error') exportFailed = true;
+  document.getElementById('exportMeter').removeAttribute('value');
   els.exportProgress.textContent = message;
   els.exportProgress.hidden = !message;
   els.exportProgress.className = `export-progress${kind ? ` is-${kind}` : ''}`;
@@ -290,7 +314,6 @@ function exportErrorMessage(error) {
 
 function showExportError(error) {
   setExportProgress(`書き出しに失敗しました: ${exportErrorMessage(error)}`, 'error');
-  showOperationError(error);
 }
 
 function isLikelyConnectionError(error) {
@@ -305,6 +328,11 @@ function isLikelyConnectionError(error) {
 }
 
 export function openExportChoiceModal() {
+  if (exportInProgress) return;
+  if (activeSentenceKey == null && els.btnExportSelected.getAttribute('aria-pressed') === 'true') {
+    els.btnExportSelected.setAttribute('aria-pressed', 'false');
+    els.btnExportCombined.setAttribute('aria-pressed', 'true');
+  }
   els.btnExportSelected.disabled = activeSentenceKey == null;
   setExportProgress('');
   els.exportChoiceModal.classList.remove('hidden');
@@ -317,7 +345,29 @@ export function closeExportChoiceModal({ force = false } = {}) {
 
 function setExportButtonsDisabled(disabled) {
   exportInProgress = disabled;
+  document.getElementById('motionOptions').disabled = disabled;
+  const status = document.getElementById('exportStatusModal');
+  const close = document.getElementById('btnExportStatusClose');
+  document.getElementById('btnStartExport').disabled = disabled;
+  if (disabled) {
+    exportFailed = false;
+    els.exportChoiceModal.classList.add('hidden');
+    status.classList.remove('hidden');
+    status.focus();
+    document.getElementById('exportStatusTitle').textContent = '出力中';
+    close.hidden = true;
+  } else if (exportFailed) {
+    document.getElementById('exportStatusTitle').textContent = '出力できませんでした';
+    document.getElementById('exportMeter').hidden = true;
+    close.hidden = false;
+    close.focus();
+  } else {
+    status.classList.add('hidden');
+    els.btnExport.focus();
+  }
+  if (disabled) document.getElementById('exportMeter').hidden = false;
   els.btnExportCombined.disabled = disabled;
+  document.getElementById('exportIncludeVideo').disabled = disabled;
   els.btnExportAll.disabled = disabled;
   els.btnExportSelected.disabled = disabled || activeSentenceKey == null;
   els.btnExportChoiceDismiss.disabled = disabled;
@@ -357,13 +407,17 @@ export async function exportCombinedAudio() {
 
     saveActiveSegmentParams();
     const parts = [];
-    for (let index = 0; index < ranges.length; index += 1) {
-      setExportProgress(`${index + 1}/${ranges.length}件目を合成しています…`);
-      parts.push(await synthesizeRange(p, ranges[index]));
-    }
-    await writeExportFiles(filePath, concatWavBuffers(parts), els.editor.value);
+    const prepared = await exportRangesPipelined(ranges, {
+      prepare: range => synthesizeRange(p, range),
+      save: (buffer, range, index) => { parts[index] = buffer; },
+      onProgress: ({ current, total }) => setExportProgress(`${current}/${total}件目の音声を出力しています…`),
+      shouldStopOnError: () => true,
+    });
+    if (prepared.failures.length) throw prepared.failures[0].error;
+    const combined = await compute('concat', parts, parts);
+    await writeExportFiles(filePath, combined, els.editor.value);
     closeExportChoiceModal({ force: true });
-    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : 'WAVを';
+    const artifactLabel = `${appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV'}${document.getElementById('exportIncludeVideo').checked ? 'とMP4' : ''}を`;
     showToast(`全文を1つの${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
     showExportError(e);
@@ -397,9 +451,14 @@ export async function exportAllAudio() {
       return;
     }
     saveActiveSegmentParams();
-    const result = await exportRangesSequentially(ranges, {
-      prepare: async (range) => {
-        const buf = await synthesizeRange(p, range);
+    const videoConcurrency = document.getElementById('exportIncludeVideo').checked ? await bridge.videoCapacity() : 1;
+    const durations = ranges.map(() => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; });
+    const result = await exportRangesConcurrent(ranges, {
+      prepare: async (range, index) => {
+        let buf, duration = 0;
+        try { buf = await synthesizeRange(p, range); duration = wavDuration(buf); }
+        finally { durations[index].resolve(duration); }
+        const originSeconds = (await Promise.all(durations.slice(0, index).map(item => item.promise))).reduce((sum, value) => sum + value, 0);
         const filePath = await bridge.resolveExportFilePath(
           directory,
           segmentExportFilename(p.title, range),
@@ -408,20 +467,20 @@ export async function exportAllAudio() {
             companionText: appState.exportTextFileEnabled,
           },
         );
-        return { filePath, buf, text: range.text };
+        return { filePath, buf, text: range.text, originSeconds };
       },
       save: async (artifact) => {
-        await writeExportFiles(artifact.filePath, artifact.buf, artifact.text);
+        await writeExportFiles(artifact.filePath, artifact.buf, artifact.text, artifact.originSeconds);
       },
       onProgress: ({ phase, current, total, savedCount }) => {
         if (phase === 'preparing') {
-          setExportProgress(`${current}/${total}件目を合成しています…`);
+          setExportProgress(`${current}/${total}件目の音声を出力しています…`);
         } else if (phase === 'saved') {
           setExportProgress(`${savedCount}/${total}件を保存しました`);
         }
       },
       shouldStopOnError: (error) => isLikelyConnectionError(error),
-    });
+    }, videoConcurrency);
 
     if (result.failures.length > 0) {
       const failedNumbers = result.failures
@@ -434,11 +493,11 @@ export async function exportAllAudio() {
         `${result.savedCount}/${ranges.length}件を保存しました。` +
         `${failedNumbers}件目で失敗${skipped}: ${exportErrorMessage(firstError)}`;
       setExportProgress(summary, 'error');
-      showOperationError(firstError);
+
       return;
     }
     closeExportChoiceModal({ force: true });
-    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV';
+    const artifactLabel = `${appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV'}${document.getElementById('exportIncludeVideo').checked ? 'とMP4' : ''}`;
     showToast(`${ranges.length}件の${artifactLabel}を書き出しました: ${directory}`);
   } catch (e) {
     showExportError(e);
@@ -475,7 +534,7 @@ export async function exportSelectedAudio() {
 
   setExportButtonsDisabled(true);
   try {
-    setExportProgress('選択中の文章を合成しています…');
+    setExportProgress('音声を出力しています…');
     await persistAppSettings();
     const buf = await synthesizeRange(p, range);
     const defaultName = selectedExportFilename(p.title, range);
@@ -486,7 +545,7 @@ export async function exportSelectedAudio() {
     }
     await writeExportFiles(filePath, buf, range.text);
     closeExportChoiceModal({ force: true });
-    const artifactLabel = appState.exportTextFileEnabled ? 'WAVとtxtを' : '';
+    const artifactLabel = `${appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV'}${document.getElementById('exportIncludeVideo').checked ? 'とMP4' : ''}を`;
     showToast(`${artifactLabel}書き出しました: ${filePath}`);
   } catch (e) {
     showExportError(e);
@@ -495,7 +554,7 @@ export async function exportSelectedAudio() {
   }
 }
 
-async function writeExportFiles(filePath, buffer, text) {
+async function writeExportFiles(filePath, buffer, text, originSeconds = 0) {
   // WAVをかんしくんが検知する時点で同名txtが読めるよう、txtを先に書く。
   if (appState.exportTextFileEnabled) {
     await bridge.writeTextFile(
@@ -505,4 +564,16 @@ async function writeExportFiles(filePath, buffer, text) {
     );
   }
   await bridge.writeWavFile(filePath, buffer);
+  if (document.getElementById('exportIncludeVideo').checked) {
+    setExportProgress('音声は保存済みです。マイタの動画を作成しています…');
+    const { exportNarrationVideo } = await import('./character-video-host.js');
+    try {
+      const motion = selectedMotion();
+      await exportNarrationVideo(buffer, filePath, motion ? { ...motion, originSeconds } : null);
+    } catch (error) {
+      const failure = new Error(`WAVは保存済みですが、動画を保存できませんでした: ${error.message}`);
+      failure.name = error.name;
+      throw failure;
+    }
+  }
 }

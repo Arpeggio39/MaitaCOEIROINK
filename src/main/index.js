@@ -1,8 +1,11 @@
+const { applyCpuBudget } = require('./cpu-budget');
+applyCpuBudget();
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
 const { installAppMenu } = require('./menu');
 const { registerAllIpcHandlers } = require('./ipc');
 const { initUpdater, checkForUpdatesOnStartup } = require('./updater');
+const { prepareVideoEncoder } = require('./video-encoder');
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -14,6 +17,7 @@ function createWindow() {
     minHeight: 560,
     titleBarStyle: 'default',
     webPreferences: {
+      backgroundThrottling: false, // Keep MP4 recording at full speed while exporting.
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -42,6 +46,8 @@ if (!hasSingleInstanceLock) {
     installAppMenu();
     initUpdater();
     createWindow();
+    // Probe in the background; exports share this cached promise even while it is pending.
+    void prepareVideoEncoder().catch(error => console.error('Video encoder initialization failed:', error));
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

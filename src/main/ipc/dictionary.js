@@ -4,7 +4,7 @@ const { dictionaryPath } = require('../paths');
 const { readJsonWithBackup, writeJsonAtomic } = require('../atomic-json');
 
 function defaultDictionaryPath() {
-  return path.join(__dirname, '../../renderer/default-dictionary.json');
+  return path.join(__dirname, '../../../renderer/default-dictionary.json');
 }
 
 function readDictionaryFile(filePath) {
@@ -18,7 +18,7 @@ function readDictionaryFile(filePath) {
 function loadBundledDefaultDictionary() {
   const data = readDictionaryFile(defaultDictionaryPath());
   if (data && Array.isArray(data.dictionaryWords)) return data;
-  return { dictionaryWords: [] };
+  throw new Error('初期辞書ファイルを読み込めませんでした。');
 }
 
 function writeDictionaryFile(filePath, data) {
@@ -26,6 +26,7 @@ function writeDictionaryFile(filePath, data) {
 }
 
 function registerDictionaryIpc() {
+  ipcMain.handle('dictionary:defaults', () => loadBundledDefaultDictionary());
   ipcMain.handle('dictionary:load', () => {
     const p = dictionaryPath();
     const existing = readDictionaryFile(p);

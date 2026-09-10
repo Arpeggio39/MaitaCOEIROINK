@@ -252,28 +252,33 @@ export function renderIntonationUI() {
       col.className = 'intonation-char-col intonation-accent-col';
       col.style.gridColumn = `${span.charStart + 1} / ${span.charEnd + 1}`;
 
-      const button = document.createElement('button');
-      button.type = 'button';
-      const syncButton = () => {
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '0';
+      slider.max = '1';
+      slider.step = '1';
+      slider.className = 'intonation-accent-toggle';
+      slider.setAttribute('aria-label', `${span.mora.hira || ''}のアクセント`);
+      slider.setAttribute('aria-orientation', 'vertical');
+      const label = document.createElement('span');
+      label.className = 'intonation-accent-value';
+      label.setAttribute('aria-hidden', 'true');
+      const syncSlider = () => {
         const isHigh = Number(span.mora.accent) === 1;
-        button.className = `intonation-accent-button ${isHigh ? 'is-high' : 'is-low'}`;
-        button.textContent = isHigh ? '高' : '低';
-        button.setAttribute(
-          'aria-label',
-          `${span.mora.hira || ''}のアクセントは${isHigh ? '高' : '低'}。クリックで切り替え`,
-        );
-        button.setAttribute('aria-pressed', String(isHigh));
+        slider.value = isHigh ? '1' : '0';
+        slider.classList.toggle('is-high', isHigh);
+        slider.setAttribute('aria-valuetext', isHigh ? '高' : '低');
+        label.textContent = isHigh ? '高' : '低';
       };
-      syncButton();
-      button.addEventListener('click', () => {
-        span.mora.accent = Number(span.mora.accent) === 1 ? 0 : 1;
+      syncSlider();
+      slider.addEventListener('input', () => {
+        span.mora.accent = Number(slider.value);
         markProsodyAccentEdited(entry);
-        syncButton();
+        syncSlider();
         bumpActiveUpdatedAt();
         schedulePersist();
       });
-
-      col.appendChild(button);
+      col.append(label, slider);
       els.intonationSliderStrip.appendChild(col);
     }
     return;

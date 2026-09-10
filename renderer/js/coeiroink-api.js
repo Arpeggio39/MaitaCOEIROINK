@@ -1,3 +1,6 @@
+import { createLimiter } from './parallel.mjs';
+const scheduleEngine = createLimiter(Math.max(1, Math.min(2, globalThis.navigator?.hardwareConcurrency || 2)));
+
 import { DEFAULT_API_BASE } from './constants.js';
 import { buildDictionaryPayload } from './dictionary-variants.mjs';
 import { fetchWithTimeout } from './utils.js';
@@ -56,6 +59,12 @@ export async function resolveApiBase() {
  * @param {number} [timeoutMs]
  */
 export async function postCoeiroink(path, init, timeoutMs = 30000) {
-  const base = await resolveApiBase();
-  return fetchWithTimeout(`${base}${path}`, init, timeoutMs);
+  return scheduleEngine(async () => {
+    init?.signal?.throwIfAborted();
+    const base = await resolveApiBase();
+    const response = await fetchWithTimeout(`${base}${path}`, init, timeoutMs);
+    // Hold the slot until the engine has finished streaming the response body.
+    const body = await response.arrayBuffer();
+    return new Response([204, 205, 304].includes(response.status) ? null : body, { status: response.status, statusText: response.statusText, headers: response.headers });
+  });
 }
