@@ -30,4 +30,3 @@ test('background noise remains closed and short clips are bounded', () => {
   assert.ok(Number.isFinite(mouthAt(short, 0)));
   assert.equal(mouthAt(short, 1), 0);
 });
-

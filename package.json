@@ -92,8 +92,8 @@
         "to": "ffmpeg-notices",
         "filter": [
           "LICENSE",
-          "ffmpeg.LICENSE",
-          "ffmpeg.README",
+          "ffmpeg*.LICENSE",
+          "ffmpeg*.README",
           "README.md"
         ]
       }

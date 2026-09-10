@@ -31,7 +31,7 @@ const text = 'アップデート後も保存した文章が残ります。';
       const resources = await application.evaluate(() => process.resourcesPath);
       const ffmpeg = path.join(resources, 'app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg.exe');
       await fs.access(ffmpeg);
-      await fs.access(path.join(resources, 'ffmpeg-notices/ffmpeg.LICENSE'));
+      await fs.access(path.join(resources, 'ffmpeg-notices/ffmpeg.exe.LICENSE'));
       const wav = path.join(profile, 'upgrade-video.wav');
       execFileSync(ffmpeg, ['-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=2', '-y', wav]);
       const bytes = (await fs.readFile(wav)).toString('base64');
