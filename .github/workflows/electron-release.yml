@@ -22,6 +22,19 @@ permissions:
   contents: read
 
 jobs:
+  native:
+    name: Build and test C SIMD module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+      - name: Install WebAssembly compiler
+        run: sudo apt-get update && sudo apt-get install -y clang lld
+      - run: npm run build:native
+      - run: node --test tests/native-lip-sync.test.mjs
+
   verify:
     name: Test and package Windows app
     runs-on: windows-latest
@@ -75,7 +88,7 @@ jobs:
   release:
     name: Publish Windows release
     if: github.event_name != 'pull_request'
-    needs: verify
+    needs: [verify, native]
     runs-on: windows-latest
     permissions:
       contents: write

@@ -19,7 +19,8 @@ export function initCharacterVideo() {
     },
     cancel() { controller?.abort(); },
     compute,
-    onProgress(value) {
+    onProgress(value, phase) {
+      document.getElementById('exportProgress').textContent = phase === 'analyze' ? '全フレームの描画範囲を確認しています…' : '動画を出力しています…';
       const meter = document.getElementById('exportMeter');
       meter.max = 1;
       meter.value = value;
@@ -34,7 +35,7 @@ export function initCharacterVideo() {
 }
 
 const frames = new Set();
-export async function exportNarrationVideo(buffer, wavPath) {
+export async function exportNarrationVideo(buffer, wavPath, motion = null) {
   const frame = document.createElement('iframe');
   if (!frames.has(frame)) {
     frames.add(frame);
@@ -55,7 +56,7 @@ export async function exportNarrationVideo(buffer, wavPath) {
     }
     await frame.contentWindow.maitaVideo.ready;
     frame.contentWindow.maitaVideo.resume();
-    return await frame.contentWindow.maitaVideo.renderNarration(buffer, wavPath);
+    return await frame.contentWindow.maitaVideo.renderNarration(buffer, wavPath, motion);
   } finally {
     frame.contentWindow?.maitaVideo?.suspend();
     // Release GPU textures after each export; capacity is recalculated for the next batch.

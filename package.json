@@ -17,7 +17,8 @@
     "dist:mac:dir": "electron-builder --mac --dir",
     "dist:win": "electron-builder --win --x64",
     "dist:win:publish": "electron-builder --win --x64 --publish always",
-    "dist:win:dir": "electron-builder --win --x64 --dir"
+    "dist:win:dir": "electron-builder --win --x64 --dir",
+    "build:native": "node scripts/build-native.cjs"
   },
   "build": {
     "appId": "jp.arpeggio.openmaita",

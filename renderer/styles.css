@@ -1354,3 +1354,27 @@ button {
 .export-video-option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .export-video-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .export-video-option:has(input:disabled) { cursor: default; opacity: 0.6; }
+
+.motion-options { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; min-width: 0; }
+.motion-options legend { font-size: 13px; padding: 0 4px; }
+.motion-options input[type="file"] { width: 100%; font-size: 12px; }
+#exportChoiceModal .modal-panel { max-height: 90vh; overflow-y: auto; }
+
+#btnMotionClear { margin-top: 8px; }
+
+.motion-timing-dialog { width: min(800px, 92vw); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--bg, #f8f8fc); color: var(--text); max-height: 90vh; overflow: auto; }
+.motion-timing-dialog::backdrop { background: #16162266; }
+.motion-timing-dialog > .modal-actions { padding: 16px 20px; }
+.motion-timeline { position: relative; height: 164px; margin: 24px 0 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; overflow: hidden; }
+.timing-block { position: absolute; height: 44px; border-radius: 6px; padding: 12px 8px; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
+.narration-block { top: 34px; background: #e0e8ff; color: #304777; border: 1px solid #a8bce6; }
+.recorded-block { top: 96px; background: var(--accent-soft); border: 2px solid var(--accent); cursor: grab; touch-action: none; user-select: none; }
+.recorded-block:active { cursor: grabbing; }
+.recorded-block:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.motion-zero { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #7c8192; pointer-events: none; }
+.motion-zero span { position: absolute; top: 6px; left: 5px; font-size: 11px; white-space: nowrap; }
+.motion-playhead { position: absolute; top: 28px; bottom: 8px; border-left: 2px solid #455478; pointer-events: none; }
+.motion-timing-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+#motionOffset { width: 100px; }
+
+.motion-timing-dialog > .modal-actions { justify-content: flex-end; }

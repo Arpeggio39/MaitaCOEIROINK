@@ -14,6 +14,10 @@ export function createLipEnvelope(channels, sampleRate, rate = 100) {
     }
     values[frame] = Math.sqrt(sum / Math.max(1, (end - start) * channels.length));
   }
+  return finishLipEnvelope(values, rate, length / sampleRate);
+}
+
+export function finishLipEnvelope(values, rate, duration) {
   const voiced = [...values].filter((value) => value > 0.008).sort((a, b) => a - b);
   const reference = Math.max(0.04, voiced[Math.floor(voiced.length * 0.95)] || 0.04);
   let smoothed = 0;
@@ -23,7 +27,7 @@ export function createLipEnvelope(channels, sampleRate, rate = 100) {
     smoothed += (target - smoothed) * (1 - Math.exp(-1 / rate / timeConstant));
     values[i] = smoothed < 0.015 ? 0 : smoothed;
   }
-  return { values, rate, duration: length / sampleRate };
+  return { values, rate, duration };
 }
 
 export function mouthAt(envelope, seconds, sensitivity = 1) {

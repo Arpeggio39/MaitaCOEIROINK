@@ -1,3 +1,5 @@
+import { wavDuration } from './motion-timing.mjs';
+import { selectedMotion } from './motion-file.js';
 import {
   MAITA_UUID,
   PLAYBACK_SAMPLE_RATE,
@@ -41,6 +43,15 @@ import {
  * @param {import('./state.js').SegmentProsody | null} [prosodyOverride]
  * @param {number} [outputSamplingRate]
  */
+const timingAudioCache = new Map();
+let captureTimingAudio = false;
+export async function prepareTimingNarration(signal, all) {
+  const capture = Symbol();
+  timingAudioCache.clear(); captureTimingAudio = capture;
+  try { return await buildPlaybackUtterance(getExportSamplingRate(), signal, { all }); }
+  finally { if (captureTimingAudio === capture) captureTimingAudio = false; }
+}
+
 export async function synthesizeLine(
   textLine,
   paramsOverride,
@@ -86,6 +97,9 @@ export async function synthesizeLine(
     outputSamplingRate: coerceSampleRate(outputSamplingRate),
     adjustedF0,
   });
+  const capture = captureTimingAudio;
+  const cacheKey = JSON.stringify([body, appState.dictionaryEntries]);
+  if (timingAudioCache.has(cacheKey)) return timingAudioCache.get(cacheKey).slice(0);
   const res = await postCoeiroink(
     '/v1/synthesis',
     {
@@ -100,7 +114,9 @@ export async function synthesizeLine(
     const errText = await res.text().catch(() => res.statusText);
     throw new Error(errText || `HTTP ${res.status}`);
   }
-  return res.arrayBuffer();
+  const buffer = await res.arrayBuffer();
+  if (capture && captureTimingAudio === capture) timingAudioCache.set(cacheKey, buffer.slice(0));
+  return buffer;
 }
 
 export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal, { all = false } = {}) {
@@ -329,6 +345,7 @@ export function closeExportChoiceModal({ force = false } = {}) {
 
 function setExportButtonsDisabled(disabled) {
   exportInProgress = disabled;
+  document.getElementById('motionOptions').disabled = disabled;
   const status = document.getElementById('exportStatusModal');
   const close = document.getElementById('btnExportStatusClose');
   document.getElementById('btnStartExport').disabled = disabled;
@@ -435,9 +452,13 @@ export async function exportAllAudio() {
     }
     saveActiveSegmentParams();
     const videoConcurrency = document.getElementById('exportIncludeVideo').checked ? await bridge.videoCapacity() : 1;
+    const durations = ranges.map(() => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; });
     const result = await exportRangesConcurrent(ranges, {
-      prepare: async (range) => {
-        const buf = await synthesizeRange(p, range);
+      prepare: async (range, index) => {
+        let buf, duration = 0;
+        try { buf = await synthesizeRange(p, range); duration = wavDuration(buf); }
+        finally { durations[index].resolve(duration); }
+        const originSeconds = (await Promise.all(durations.slice(0, index).map(item => item.promise))).reduce((sum, value) => sum + value, 0);
         const filePath = await bridge.resolveExportFilePath(
           directory,
           segmentExportFilename(p.title, range),
@@ -446,10 +467,10 @@ export async function exportAllAudio() {
             companionText: appState.exportTextFileEnabled,
           },
         );
-        return { filePath, buf, text: range.text };
+        return { filePath, buf, text: range.text, originSeconds };
       },
       save: async (artifact) => {
-        await writeExportFiles(artifact.filePath, artifact.buf, artifact.text);
+        await writeExportFiles(artifact.filePath, artifact.buf, artifact.text, artifact.originSeconds);
       },
       onProgress: ({ phase, current, total, savedCount }) => {
         if (phase === 'preparing') {
@@ -533,7 +554,7 @@ export async function exportSelectedAudio() {
   }
 }
 
-async function writeExportFiles(filePath, buffer, text) {
+async function writeExportFiles(filePath, buffer, text, originSeconds = 0) {
   // WAVをかんしくんが検知する時点で同名txtが読めるよう、txtを先に書く。
   if (appState.exportTextFileEnabled) {
     await bridge.writeTextFile(
@@ -547,7 +568,8 @@ async function writeExportFiles(filePath, buffer, text) {
     setExportProgress('音声は保存済みです。マイタの動画を作成しています…');
     const { exportNarrationVideo } = await import('./character-video-host.js');
     try {
-      await exportNarrationVideo(buffer, filePath);
+      const motion = selectedMotion();
+      await exportNarrationVideo(buffer, filePath, motion ? { ...motion, originSeconds } : null);
     } catch (error) {
       const failure = new Error(`WAVは保存済みですが、動画を保存できませんでした: ${error.message}`);
       failure.name = error.name;

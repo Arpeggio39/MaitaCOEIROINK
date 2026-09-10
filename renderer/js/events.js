@@ -1,3 +1,4 @@
+import { initMotionFile } from './motion-file.js';
 import { bridge } from './bridge.js';
 import { els } from './dom.js';
 import { activeSentenceKey } from './state.js';
@@ -53,6 +54,7 @@ import {
 } from './settings.js';
 
 export function bindEvents() {
+  initMotionFile();
   els.projectTitle.addEventListener('click', () => startProjectTitleEdit());
   els.projectTitleInput.addEventListener('blur', () => commitProjectTitleEdit());
   els.projectTitleInput.addEventListener('keydown', (ev) => {
@@ -199,6 +201,7 @@ export function bindEvents() {
   });
 
   document.addEventListener('keydown', (ev) => {
+    if (document.getElementById('motionTimingDialog').open) return;
     if (ev.key === 'Escape' && !els.exportChoiceModal.classList.contains('hidden')) {
       closeExportChoiceModal();
       return;

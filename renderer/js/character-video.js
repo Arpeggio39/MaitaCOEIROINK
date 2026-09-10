@@ -1,3 +1,7 @@
+import { createGpuFrameBounds } from './gpu-frame-bounds.js';
+import { mergeFrameBounds, frameFromBounds } from './frame-bounds.mjs';
+import { alignedMotionTime } from './motion-timing.mjs';
+import { sampleRecordedMotion } from './recorded-motion.mjs';
 import { compute } from './compute-pool.js';
 import { mouthAt, formatVideoTime } from './lip-sync.mjs';
 
@@ -9,9 +13,12 @@ const host = window.parent.maitaVideoHost;
 let app, model, context, audio, envelope, source;
 let running = false, busy = false, suspended = false, cancelled = false;
 let exporting = false;
+let exportPhase = 'encode';
+let analysisTarget = null;
 let raf = 0, lastFrame = 0, startedAt = 0, elapsed = 0, sceneTime = 0;
 let operation = 0;
 let performancePlan;
+let recorded = null, recordedValues = [];
 let resolveReady, rejectReady;
 const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
 ready.catch(() => {});
@@ -38,7 +45,7 @@ function updateControls() {
 function updateTime() {
   $('videoTime').textContent = `${formatVideoTime(elapsed)} / ${formatVideoTime(audio?.duration)}`;
   $('videoProgress').value = audio ? Math.min(1, elapsed / audio.duration) : 0;
-  if (exporting) window.parent.maitaVideoHost?.onProgress?.($('videoProgress').value);
+  if (exporting) window.parent.maitaVideoHost?.onProgress?.($('videoProgress').value, exportPhase);
 }
 
 async function audioContext() {
@@ -116,6 +123,7 @@ function render(now) {
 
 function drawFrame(delta) {
   sceneTime += delta / 1000;
+  recordedValues = recorded ? sampleRecordedMotion(recorded.motion, alignedMotionTime(elapsed, recorded.offsetSeconds, recorded.originSeconds), recorded.loop) : [];
   const target = $('videoIdle').checked
     ? speechPoseAt((running || exporting) && performancePlan ? performancePlan : idlePlan, (running || exporting) ? elapsed : sceneTime % 60)
     : neutralSpeechPose();
@@ -127,7 +135,7 @@ function drawFrame(delta) {
     currentPose[key] = /Eye[LR]Open/.test(key) ? value : currentPose[key] + (value - currentPose[key]) * blend;
   }
   model.update(delta);
-  app.renderer.render(app.stage);
+  if (analysisTarget) analysisTarget.render(app.stage); else app.renderer.render(app.stage);
   updateTime();
 }
 
@@ -183,6 +191,65 @@ function startSource(destination) {
   updateControls();
 }
 
+function geometryBounds() {
+  const core = model.internalModel.coreModel;
+  const transform = model.worldTransform.clone().append(model.internalModel.localTransform);
+  let bounds = null;
+  for (let i=0;i<core.getDrawableCount();i++) {
+    if (core.getDrawableOpacity(i) <= 0) continue;
+    const vertices = model.internalModel.getDrawableVertices(i);
+    for (let j=0;j<vertices.length;j+=2) {
+      const x=transform.a*vertices[j]+transform.c*vertices[j+1]+transform.tx;
+      const y=transform.b*vertices[j]+transform.d*vertices[j+1]+transform.ty;
+      bounds=mergeFrameBounds(bounds,{left:x,top:y,right:x,bottom:y});
+    }
+  }
+  return bounds;
+}
+
+async function analyzeFrames(frameCount, generation) {
+  const core = model.internalModel.coreModel;
+  const snapshots = [];
+  let bounds = null, width = 1280, height = 1280;
+  const limit = Math.min(4096,app.renderer.gl.getParameter(app.renderer.gl.MAX_TEXTURE_SIZE));
+  model.position.set(640,256);
+  app.renderer.backgroundAlpha = 0;
+  analysisTarget = createGpuFrameBounds(app.renderer,width,height);
+  const capture = () => snapshots.push({
+    parameters: Float32Array.from({length:core.getParameterCount()},(_,i)=>core.getParameterValueByIndex(i)),
+    parts: Float32Array.from({length:core.getPartCount()},(_,i)=>core.getPartOpacityByIndex(i)),
+    alpha:model.alpha,
+  });
+  model.internalModel.on('beforeModelUpdate',capture);
+  elapsed=sceneTime=0; currentPose=neutralSpeechPose(); exportPhase='analyze';
+  try {
+    for(let index=0;index<frameCount;index++) {
+      if(cancelled || generation!==operation) throw new DOMException('動画の作成を中止しました。','AbortError');
+      elapsed=index/30; drawFrame(1000/30);
+      // Geometry guards against an entire part falling outside the analysis viewport.
+      let geometry=geometryBounds();
+      while(geometry && (geometry.left<2 || geometry.top<2 || geometry.right>=width-2 || geometry.bottom>=height-2)) {
+        if(width>=limit || height>=limit) throw new Error('動きの範囲が描画可能なサイズを超えています。');
+        const nextWidth=Math.min(limit,width*2),nextHeight=Math.min(limit,height*2);
+        const dx=(nextWidth-width)/2,dy=(nextHeight-height)/2;
+        model.position.x+=dx;model.position.y+=dy;
+        if(bounds) bounds={left:bounds.left+dx,right:bounds.right+dx,top:bounds.top+dy,bottom:bounds.bottom+dy};
+        width=nextWidth;height=nextHeight;
+        analysisTarget.destroy();analysisTarget=createGpuFrameBounds(app.renderer,width,height);
+        analysisTarget.render(app.stage); // Same Core state; do not advance physics again.
+        geometry=geometryBounds();
+      }
+      bounds=mergeFrameBounds(bounds,analysisTarget.read());
+      // Yield to UI/cancellation while the GPU and encoder jobs share the device.
+      if(index%8===0) await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    return {snapshots,frame:frameFromBounds(bounds)};
+  } finally {
+    model.internalModel.off('beforeModelUpdate',capture);
+    analysisTarget?.destroy();analysisTarget=null;
+  }
+}
+
 async function exportVideo({ wavPath } = {}) {
   if (!audio || busy || running) throw new Error('音声の準備ができていません。');
   if (!wavPath) throw new Error('右上の書き出しメニューから動画を出力してください。');
@@ -195,19 +262,40 @@ async function exportVideo({ wavPath } = {}) {
   try {
     const canvas = $('characterCanvas');
     const frameCount = Math.ceil(audio.duration * 30);
-    session = await host.begin({ wavPath, width: canvas.width, height: canvas.height, frameCount });
-    elapsed = sceneTime = 0;
-    currentPose = neutralSpeechPose();
-    for (let index = 0; index < frameCount; index++) {
-      if (cancelled || generation !== operation) throw new DOMException('動画の作成を中止しました。', 'AbortError');
-      elapsed = index / 30;
-      drawFrame(1000 / 30);
-      const pixels = app.renderer.plugins.extract.pixels();
-      await host.frame(session.id, pixels.buffer);
+    const { snapshots, frame } = await analyzeFrames(frameCount,generation);
+    const scale=Math.min(1,2048/frame.width,2048/frame.height);
+    model.position.set((model.position.x+frame.offsetX)*scale,(model.position.y+frame.offsetY)*scale);
+    model.scale.set(model.scale.x*scale,model.scale.y*scale);
+    app.renderer.resize(Math.ceil(frame.width*scale/2)*2,Math.ceil(frame.height*scale/2)*2);
+    app.renderer.backgroundAlpha=1;
+    $('videoDimensions').textContent=`${canvas.width} × ${canvas.height}`;
+    exportPhase='encode';
+    // Reuse the measured poses and camera when a driver capacity retry is needed.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        session = await host.begin({ wavPath, width: canvas.width, height: canvas.height, frameCount });
+        const core=model.internalModel.coreModel;
+        for (let index = 0; index < frameCount; index++) {
+          if (cancelled || generation !== operation) throw new DOMException('動画の作成を中止しました。', 'AbortError');
+          const snapshot=snapshots[index];
+          for(let i=0;i<snapshot.parameters.length;i++) core.setParameterValueByIndex(i,snapshot.parameters[i]);
+          for(let i=0;i<snapshot.parts.length;i++) core.setPartOpacityByIndex(i,snapshot.parts[i]);
+          model.alpha=snapshot.alpha;core.update();
+          app.renderer.render(app.stage);
+          elapsed=index/30;updateTime();
+          const pixels = app.renderer.plugins.extract.pixels();
+          await host.frame(session.id, pixels.buffer);
+        }
+        elapsed = audio.duration;
+        updateTime();
+        return await host.finish(session.id);
+      } catch (error) {
+        if (!error.message.includes('NVENC_RESOURCE:') || attempt >= 2) throw error;
+      } finally {
+        if (session) await host.abort(session.id);
+        session = null;
+      }
     }
-    elapsed = audio.duration;
-    updateTime();
-    return await host.finish(session.id);
   } finally {
     if (session) await host.abort(session.id);
     exporting = busy = false;
@@ -217,19 +305,20 @@ async function exportVideo({ wavPath } = {}) {
 
 window.maitaVideo = {
   ready,
-  async renderNarration(buffer, wavPath) {
+  async renderNarration(buffer, wavPath, motion = null) {
     document.body.classList.add('is-companion-export');
     try {
       const loaded = await prepareAudio(() => Promise.resolve(buffer), '書き出すナレーション');
       if (!loaded) throw new Error($('videoStatus').textContent);
-      for (let attempt = 0; ; attempt++) {
-        try { return await exportVideo({ wavPath }); }
-        catch (error) {
-          // Driver session limits can be lower than the available-memory estimate.
-          // The main-process budget shrinks before a fresh encoder is admitted.
-          if (!error.message.includes('NVENC_RESOURCE:') || attempt >= 2) throw error;
+      recorded = motion;
+      if (recorded) {
+        const ids = new Set(model.internalModel.coreModel._parameterIds);
+        if (!recorded.motion.curves.some(curve => curve.target === 'Parameter' && ids.has(curve.id))) {
+          throw new Error('このモデルに対応するパラメーターがありません。同じマイタモデルで収録したモーションを選んでください。');
         }
+        model.internalModel.eyeBlink = undefined;
       }
+      return await exportVideo({ wavPath });
     } finally { document.body.classList.remove('is-companion-export'); }
   },
   suspend() {
@@ -279,7 +368,26 @@ try {
     const target = additive ? core.getParameterValueByIndex(index) + value : value;
     core.setParameterValueByIndex(index, Math.max(core.getParameterMinimumValue(index), Math.min(core.getParameterMaximumValue(index), target)));
   };
+  const parts = new Map(core._partIds.map((id, index) => [id, index]));
+  function applyRecording() {
+    const blink = recordedValues.find(curve => curve.target === 'Model' && curve.id === 'EyeBlink');
+    if (blink) for (const id of ['ParamEyeLOpen', 'ParamEyeROpen']) apply(id, blink.value);
+    for (const curve of recordedValues) {
+      if (curve.target === 'Parameter') {
+        const eye = curve.id === 'ParamEyeLOpen' || curve.id === 'ParamEyeROpen';
+        apply(curve.id, curve.value * (eye && blink ? blink.value : 1));
+      } else if (curve.target === 'PartOpacity' && parts.has(curve.id)) {
+        core.setPartOpacityByIndex(parts.get(curve.id), Math.max(0, Math.min(1, curve.value)));
+      } else if (curve.target === 'Model' && curve.id === 'Opacity') {
+        model.alpha = Math.max(0, Math.min(1, curve.value));
+      }
+    }
+    // Apply again after physics and pose: recorded eyes, brows, mouth shape and body
+    // must not be replaced by automatic motion. Only mouth opening is audio-driven.
+    apply('ParamMouthOpenY', mouthAt(envelope, elapsed, Number($('videoSensitivity').value)));
+  }
   model.internalModel.on('afterMotionUpdate', () => {
+    if (recorded) { applyRecording(); return; }
     for (const [id, value] of Object.entries(currentPose)) {
       if (!SECONDARY_PARAMETERS.has(id)) apply(id, value);
     }
@@ -289,6 +397,7 @@ try {
     apply('ParamMouthForm', 0);
   });
   model.internalModel.on('beforeModelUpdate', () => {
+    if (recorded) { applyRecording(); return; }
     for (const id of SECONDARY_PARAMETERS) apply(id, currentPose[id], true);
   });
   app.stage.addChild(model);

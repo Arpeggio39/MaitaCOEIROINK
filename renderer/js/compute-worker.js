@@ -1,10 +1,13 @@
-import { createLipEnvelope } from './lip-sync.mjs';
+import { parseRecordedMotion } from './recorded-motion.mjs';
+import { createNativeLipEnvelope } from './native-lip-sync.mjs';
 import { createSpeechMotion } from './speech-motion.mjs';
 import { concatWavBuffers } from './wav-utils.mjs';
-self.onmessage = ({ data: { kind, data } }) => {
+self.onmessage = async ({ data: { kind, data } }) => {
   try {
-    if (kind === 'speech') {
-      const envelope = createLipEnvelope(data.channels, data.sampleRate);
+    if (kind === 'motion') {
+      self.postMessage({ value: parseRecordedMotion(data) });
+    } else if (kind === 'speech') {
+      const envelope = await createNativeLipEnvelope(data.channels, data.sampleRate);
       const plan = createSpeechMotion(envelope);
       self.postMessage({ value: { envelope, plan } }, [envelope.values.buffer]);
     } else if (kind === 'concat') {
