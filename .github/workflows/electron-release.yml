@@ -42,9 +42,35 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Package Windows app
+      - name: Package Windows installer
         if: github.event_name == 'pull_request'
-        run: npm run dist:win:dir
+        run: npm run dist:win
+
+      - name: Verify upgrade from 1.9.0
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $old = Join-Path $env:RUNNER_TEMP 'old-installer'
+          New-Item -ItemType Directory -Force $old | Out-Null
+          gh release download v1.9.0 --pattern 'OpenMaita-Setup-1.9.0.exe' --dir $old
+          if ($LASTEXITCODE -ne 0) { throw 'Old installer download failed' }
+          $install = Join-Path $env:RUNNER_TEMP 'OpenMaitaUpgrade'
+          $profile = Join-Path $env:RUNNER_TEMP 'OpenMaitaUpgradeProfile'
+          $oldSetup = Join-Path $old 'OpenMaita-Setup-1.9.0.exe'
+          $process = Start-Process $oldSetup -ArgumentList '/S', "/D=$install" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Old install failed' }
+          $exe = Join-Path $install 'OpenMaita.exe'
+          node scripts/verify-installed-upgrade.cjs seed $exe $profile
+          if ($LASTEXITCODE -ne 0) { throw 'Old application fixture failed' }
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $setup = Join-Path $PWD "dist/OpenMaita-Setup-$version.exe"
+          $process = Start-Process $setup -ArgumentList '/S', "/D=$install" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Upgrade install failed' }
+          node scripts/verify-installed-upgrade.cjs verify $exe $profile
+          if ($LASTEXITCODE -ne 0) { throw 'Upgraded application verification failed' }
 
   release:
     name: Publish Windows release

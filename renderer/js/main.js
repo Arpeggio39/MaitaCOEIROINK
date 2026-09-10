@@ -9,6 +9,7 @@ import { loadAppSettingsFromDisk } from './settings.js';
 import { flushProjectsSync, setSyncUiBeforeSave } from './persist.js';
 import * as appState from './state.js';
 import { showToast } from './utils.js';
+import { initCharacterVideo } from './character-video-host.js';
 
 async function boot() {
   initEditor();
@@ -18,6 +19,7 @@ async function boot() {
   window.addEventListener('beforeunload', () => flushProjectsSync());
 
   bindEvents();
+  initCharacterVideo();
   updateSegmentPanelsVisibility();
   refreshValueLabels();
   resizeWaveformCanvas();

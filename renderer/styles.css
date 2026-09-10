@@ -682,40 +682,35 @@ button {
   padding: 2px 3px 4px;
 }
 
-.intonation-accent-button {
-  width: 100%;
-  min-width: 30px;
-  height: 76px;
-  display: flex;
-  justify-content: center;
-  padding: 9px 2px;
+.intonation-accent-col { align-items: center; gap: 5px; }
+.intonation-accent-value { font-size: 10px; color: var(--muted); }
+.intonation-accent-toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 28px;
+  height: 54px;
+  margin: 0;
+  padding: 3px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fafafa;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  border-radius: 999px;
+  background: #e2e4eb;
+  cursor: pointer;
 }
+.intonation-accent-toggle.is-high { background: var(--accent-soft); border-color: rgba(232, 72, 142, 0.35); }
+.intonation-accent-toggle::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(26, 29, 38, 0.12);
+  border-radius: 50%;
+  background: #fff;
+}
+.intonation-accent-toggle.is-high::-webkit-slider-thumb { background: var(--accent); border-color: transparent; }
+.intonation-accent-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.intonation-accent-button.is-high {
-  align-items: flex-start;
-  border-color: rgba(232, 72, 142, 0.35);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.intonation-accent-button.is-low {
-  align-items: flex-end;
-}
-
-.intonation-accent-button:hover {
-  border-color: rgba(232, 72, 142, 0.45);
-}
-
-.intonation-accent-button:focus-visible {
-  outline: 2px solid rgba(232, 72, 142, 0.45);
-  outline-offset: 1px;
-}
 
 .btn-sentence-export {
   width: 100%;
@@ -1346,3 +1341,16 @@ button {
 .boot-overlay .btn-modal-secondary {
   width: 100%;
 }
+
+/* Keep the renderer laid out behind the modal so recording continues without a preview. */
+.character-video-renderer { position: fixed; top: 0; left: 0; width: 820px; height: 760px; opacity: 0; pointer-events: none; z-index: -1; border: 0; }
+.export-choice-button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.export-actions { display: flex; justify-content: flex-end; }
+#exportMeter { width: 100%; height: 8px; accent-color: var(--accent); }
+.export-choice-separator { width: 100%; border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+
+.export-video-option { display: flex; align-items: center; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+.export-video-option input { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+.export-video-option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.export-video-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.export-video-option:has(input:disabled) { cursor: default; opacity: 0.6; }

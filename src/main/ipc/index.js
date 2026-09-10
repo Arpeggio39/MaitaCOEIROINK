@@ -3,6 +3,7 @@ const { registerDictionaryIpc } = require('./dictionary');
 const { registerDialogIpc } = require('./dialogs');
 const { registerFsIpc } = require('./fs');
 const { registerNativeIpc } = require('./native');
+const { registerVideoIpc } = require('./video');
 
 function registerAllIpcHandlers() {
   registerStorageIpc();
@@ -10,6 +11,7 @@ function registerAllIpcHandlers() {
   registerDialogIpc();
   registerFsIpc();
   registerNativeIpc();
+  registerVideoIpc();
 }
 
 module.exports = { registerAllIpcHandlers };

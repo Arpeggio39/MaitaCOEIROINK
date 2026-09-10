@@ -57,22 +57,11 @@
               <path fill-rule="evenodd" d="M6 5.25A.75.75 0 0 1 6.75 4.5h10.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H6.75a.75.75 0 0 1-.75-.75V5.25Z" clip-rule="evenodd" />
             </svg>
           </button>
-          <button type="button" id="btnExport" class="btn btn-tool btn-tool-icon" title="書き出し（WAV）">
+          <button type="button" id="btnExport" class="btn btn-tool btn-tool-icon" title="書き出し" aria-label="書き出し">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
             </svg>
           </button>
-          <label class="sr-only" for="exportSamplingRate">書き出しサンプルレート</label>
-          <select id="exportSamplingRate" class="input input-toolbar" title="書き出しサンプルレート">
-            <option value="8000">8k</option>
-            <option value="11025">11k</option>
-            <option value="16000">16k</option>
-            <option value="22050">22k</option>
-            <option value="24000">24k</option>
-            <option value="32000">32k</option>
-            <option value="44100" selected>44.1k</option>
-            <option value="48000">48k</option>
-          </select>
           </div>
         </div>
       </header>
@@ -228,7 +217,10 @@
         </table>
       </div>
       <div class="modal-actions-between">
-        <button type="button" id="btnDictAddRow" class="btn btn-dict-add">＋ 行を追加</button>
+        <div class="modal-actions">
+          <button type="button" id="btnDictAddRow" class="btn btn-dict-add">＋ 行を追加</button>
+          <button type="button" id="btnDictDefaults" class="btn btn-modal-secondary">初期辞書を追加</button>
+        </div>
         <div class="modal-actions">
           <button type="button" id="btnDictClose" class="btn btn-modal-secondary">閉じる</button>
           <button type="button" id="btnDictApply" class="btn btn-modal-primary">保存</button>
@@ -244,6 +236,19 @@
         <button type="button" id="btnExportSettingsDismiss" class="btn-modal-close" aria-label="閉じる">×</button>
       </header>
       <div class="settings-body">
+        <div class="field">
+          <label for="exportSamplingRate">書き出しサンプルレート</label>
+          <select id="exportSamplingRate" class="input" title="書き出しサンプルレート">
+            <option value="8000">8k</option>
+            <option value="11025">11k</option>
+            <option value="16000">16k</option>
+            <option value="22050">22k</option>
+            <option value="24000">24k</option>
+            <option value="32000">32k</option>
+            <option value="44100" selected>44.1k</option>
+            <option value="48000">48k</option>
+          </select>
+        </div>
         <label class="check-row check-row-first">
           <input type="checkbox" id="exportDirectoryEnabled" />
           <span>書き出しフォルダーを固定する</span>
@@ -289,19 +294,35 @@
   <div id="exportChoiceModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="exportChoiceModalTitle">
     <div class="modal-panel modal-panel-compact">
       <header class="modal-head">
-        <h2 id="exportChoiceModalTitle" class="modal-title">音声を書き出す</h2>
+        <h2 id="exportChoiceModalTitle" class="modal-title">書き出す</h2>
         <button type="button" id="btnExportChoiceDismiss" class="btn-modal-close" aria-label="閉じる">×</button>
       </header>
       <div class="export-choice-body">
-        <button type="button" id="btnExportCombined" class="btn export-choice-button">全文を1つのWAVに書き出す</button>
-        <button type="button" id="btnExportSelected" class="btn export-choice-button">選択中の文章を書き出す</button>
-        <button type="button" id="btnExportAll" class="btn export-choice-button">全文章を区切りごとに書き出す</button>
-        <p id="exportProgress" class="export-progress" role="status" aria-live="polite" hidden></p>
-        <p class="settings-note">書き出し設定に従い、WAVと必要に応じて同名のtxtを保存します。</p>
+        <button type="button" id="btnExportCombined" class="btn export-choice-button" aria-pressed="true">全文を1つのWAVに書き出す</button>
+        <button type="button" id="btnExportSelected" class="btn export-choice-button" aria-pressed="false">選択中の文章を書き出す</button>
+        <button type="button" id="btnExportAll" class="btn export-choice-button" aria-pressed="false">全文章を区切りごとに書き出す</button>
+        <hr class="export-choice-separator">
+        <label class="export-video-option">
+          <input type="checkbox" id="exportIncludeVideo">
+          <span>マイタLive2Dモデルの動画も書き出す</span>
+        </label>
+
+        <p class="settings-note">音声の書き出しでは、設定に従いWAVと必要に応じて同名のtxtを保存します。</p>
+        <div class="export-actions"><button type="button" id="btnStartExport" class="btn btn-accent">出力する</button></div>
       </div>
     </div>
   </div>
 
+  <div id="exportStatusModal" tabindex="-1" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="exportStatusTitle">
+    <div class="modal-panel modal-panel-compact">
+      <header class="modal-head"><h2 id="exportStatusTitle" class="modal-title">出力中</h2></header>
+      <div class="export-choice-body">
+        <p id="exportProgress" class="export-progress" role="status" aria-live="polite"></p>
+        <progress id="exportMeter" aria-label="出力の進捗"></progress>
+        <div class="export-actions"><button type="button" id="btnExportStatusClose" class="btn" hidden>閉じる</button></div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

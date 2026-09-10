@@ -27,10 +27,10 @@ test('手動書き出しはヘッダーから選択・全件を選べる', () =>
   assert.match(dom, /btnExportCombined:/);
 });
 
-test('全文を1つのWAVへ結合し、区切り別は合成直後に順次保存する', () => {
+test('全文を1つのWAVへ結合し、区切り別は準備と出力を重ねる', () => {
   assert.match(audio, /exportCombinedAudio/);
-  assert.match(audio, /concatWavBuffers\(parts\)/);
-  assert.match(audio, /exportRangesSequentially/);
+  assert.match(audio, /compute\('concat', parts, parts\)/);
+  assert.match(audio, /exportRangesConcurrent/);
   assert.doesNotMatch(audio, /const artifacts = \[\]/);
   assert.match(html, /id="exportProgress"[\s\S]*aria-live="polite"/);
 });

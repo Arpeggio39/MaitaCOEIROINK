@@ -39,6 +39,7 @@ import {
 } from './audio.js';
 import {
   appendDictionaryRow,
+  addDefaultDictionaryRows,
   closeDictionaryModal,
   openDictionaryModal,
   saveDictionaryFromModal,
@@ -64,6 +65,7 @@ export function bindEvents() {
     }
   });
 
+  document.getElementById('btnDictDefaults').addEventListener('click', () => void addDefaultDictionaryRows());
   els.btnNewProject.addEventListener('click', () => newProject());
   els.btnExportSettings.addEventListener('click', () => openExportSettingsModal());
   els.btnExportSettingsDismiss.addEventListener('click', () => closeExportSettingsModal());
@@ -102,9 +104,20 @@ export function bindEvents() {
   els.btnPlay.addEventListener('click', () => void togglePlayback());
   els.btnExport.addEventListener('click', () => openExportChoiceModal());
   els.btnExportChoiceDismiss.addEventListener('click', () => closeExportChoiceModal());
-  els.btnExportCombined.addEventListener('click', () => void exportCombinedAudio());
-  els.btnExportSelected.addEventListener('click', () => void exportSelectedAudio());
-  els.btnExportAll.addEventListener('click', () => void exportAllAudio());
+  const exportChoices = [els.btnExportCombined, els.btnExportSelected, els.btnExportAll];
+  exportChoices.forEach(button => button.addEventListener('click', () => {
+    exportChoices.forEach(choice => choice.setAttribute('aria-pressed', String(choice === button)));
+  }));
+  document.getElementById('btnStartExport').addEventListener('click', () => {
+    const index = exportChoices.findIndex(button => button.getAttribute('aria-pressed') === 'true');
+    if (index >= 0 && !exportChoices[index].disabled) {
+      void [exportCombinedAudio, exportSelectedAudio, exportAllAudio][index]();
+    }
+  });
+  document.getElementById('btnExportStatusClose').addEventListener('click', () => {
+    document.getElementById('exportStatusModal').classList.add('hidden');
+    els.btnExport.focus();
+  });
 
   els.editor.addEventListener('input', () => {
     syncActiveProjectFromUi();

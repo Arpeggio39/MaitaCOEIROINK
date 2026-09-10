@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self'">
+  <title>マイタの口パク動画</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="character-video.css">
+</head>
+<body class="video-body">
+  <main class="video-layout">
+    <section class="video-preview" aria-label="キャラクターのプレビュー">
+      <canvas id="characterCanvas" width="1280" height="720" aria-label="マイタのグリーンバック映像"></canvas>
+      <div class="video-transport">
+        <button id="videoPlay" class="btn btn-accent" disabled>再生</button>
+        <button id="videoStop" class="btn" disabled>停止</button>
+        <span id="videoTime">0:00 / 0:00</span>
+      </div>
+      <progress id="videoProgress" max="1" value="0" aria-label="再生・書き出しの進捗"></progress>
+      <p id="videoStatus" role="status" aria-live="polite">モデルを読み込んでいます…</p>
+    </section>
+    <aside class="video-controls">
+      <h2>ナレーション</h2>
+      <label for="videoScope">読み上げる範囲</label>
+      <select id="videoScope"><option value="all">全文</option><option value="selection">選択中の文章（未選択時は全文）</option></select>
+      <button id="videoSynthesize" class="btn" disabled>文章から音声を生成</button>
+      <p id="videoAudioName" class="settings-note">音声がまだありません。</p>
+      <h2>キャラクター</h2>
+      <label for="videoSensitivity">口の動き <output id="videoSensitivityValue">1.0</output></label>
+      <input id="videoSensitivity" type="range" min="0.3" max="3" step="0.1" value="1">
+      <label class="video-checkbox"><input id="videoIdle" type="checkbox" checked> 自然な会話モーション</label>
+      <label for="videoMotionStrength">動きの大きさ <output id="videoMotionStrengthValue">1.0</output></label>
+      <input id="videoMotionStrength" type="range" min="0.3" max="1.5" step="0.1" value="1">
+      <button id="videoExport" class="btn btn-accent" disabled>動画を書き出す</button>
+      <button id="videoSaveAgain" class="btn" hidden>作成した動画を保存</button>
+      <p class="settings-note">グリーンバック・<span id="videoDimensions">キャラクターに合わせて自動調整</span>・約30 fps<br>音声付きMP4。編集ソフトのクロマキーで緑色を抜いて使えます。10分以内の音声に対応し、書き出しには音声と同じ長さの時間がかかります。</p>
+    </aside>
+  </main>
+  <script src="vendor/live2dcubismcore.min.js"></script>
+  <script src="vendor/pixi.min.js"></script>
+  <script src="vendor/cubism4.min.js"></script>
+  <script type="module" src="js/character-video.js"></script>
+</body>
+</html>

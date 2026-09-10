@@ -4,7 +4,7 @@ import { cloneParams } from '../renderer/js/params.js';
 import { setMaitaStyleId } from '../renderer/js/state.js';
 
 globalThis.document = { getElementById: () => ({ querySelector: () => null }) };
-globalThis.window = { maita: {} };
+globalThis.window = { maita: {}, addEventListener() {} };
 const { synthesizeLine } = await import('../renderer/js/audio.js');
 setMaitaStyleId(302790798);
 

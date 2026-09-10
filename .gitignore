@@ -12,3 +12,6 @@ dist/latest.yml
 # voice-pack-release workflow artifacts
 dist-voice-pack/
 bionmaita-*.zip
+
+# Local character-video previews and exported samples
+local-output/
