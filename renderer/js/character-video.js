@@ -1,3 +1,4 @@
+import { createExpressionCues, expressionAt } from './speech-expression.mjs';
 import { createGpuFrameBounds } from './gpu-frame-bounds.js';
 import { mergeFrameBounds, frameFromBounds } from './frame-bounds.mjs';
 import { alignedMotionTime } from './motion-timing.mjs';
@@ -19,6 +20,7 @@ let raf = 0, lastFrame = 0, startedAt = 0, elapsed = 0, sceneTime = 0;
 let operation = 0;
 let performancePlan;
 let recorded = null, recordedValues = [];
+let expressionCues = [];
 let resolveReady, rejectReady;
 const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
 ready.catch(() => {});
@@ -305,12 +307,13 @@ async function exportVideo({ wavPath } = {}) {
 
 window.maitaVideo = {
   ready,
-  async renderNarration(buffer, wavPath, motion = null) {
+  async renderNarration(buffer, wavPath, motion = null, expressionOptions = {}) {
     document.body.classList.add('is-companion-export');
     try {
       const loaded = await prepareAudio(() => Promise.resolve(buffer), '書き出すナレーション');
       if (!loaded) throw new Error($('videoStatus').textContent);
       recorded = motion;
+      expressionCues = !recorded && expressionOptions.enabled ? createExpressionCues(expressionOptions.text, envelope) : [];
       if (recorded) {
         const ids = new Set(model.internalModel.coreModel._parameterIds);
         if (!recorded.motion.curves.some(curve => curve.target === 'Parameter' && ids.has(curve.id))) {
@@ -369,6 +372,17 @@ try {
     core.setParameterValueByIndex(index, Math.max(core.getParameterMinimumValue(index), Math.min(core.getParameterMaximumValue(index), target)));
   };
   const parts = new Map(core._partIds.map((id, index) => [id, index]));
+  function applyExpression() {
+    if (recorded) return;
+    for (const [id, { value, strength }] of Object.entries(expressionAt(expressionCues, elapsed))) {
+      const index = indices.get(id);
+      if (index === undefined) continue;
+      const base = core.getParameterValueByIndex(index);
+      // Eyelid expression scales the captured blink, so eyes can still close fully.
+      const target = /Eye[LR]Open/.test(id) ? base * value : value;
+      apply(id, base + (target - base) * strength);
+    }
+  }
   function applyRecording() {
     const blink = recordedValues.find(curve => curve.target === 'Model' && curve.id === 'EyeBlink');
     if (blink) for (const id of ['ParamEyeLOpen', 'ParamEyeROpen']) apply(id, blink.value);
@@ -383,7 +397,7 @@ try {
       }
     }
     // Apply again after physics and pose: recorded eyes, brows, mouth shape and body
-    // must not be replaced by automatic motion. Only mouth opening is audio-driven.
+    // stay recorded. Imported motion bypasses the automatic expression layer.
     apply('ParamMouthOpenY', mouthAt(envelope, elapsed, Number($('videoSensitivity').value)));
   }
   model.internalModel.on('afterMotionUpdate', () => {
@@ -399,6 +413,7 @@ try {
   model.internalModel.on('beforeModelUpdate', () => {
     if (recorded) { applyRecording(); return; }
     for (const id of SECONDARY_PARAMETERS) apply(id, currentPose[id], true);
+    applyExpression();
   });
   app.stage.addChild(model);
   fitVideoToCharacter();

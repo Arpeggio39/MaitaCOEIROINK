@@ -35,7 +35,7 @@ export function initCharacterVideo() {
 }
 
 const frames = new Set();
-export async function exportNarrationVideo(buffer, wavPath, motion = null) {
+export async function exportNarrationVideo(buffer, wavPath, motion = null, expressionOptions = {}) {
   const frame = document.createElement('iframe');
   if (!frames.has(frame)) {
     frames.add(frame);
@@ -56,7 +56,7 @@ export async function exportNarrationVideo(buffer, wavPath, motion = null) {
     }
     await frame.contentWindow.maitaVideo.ready;
     frame.contentWindow.maitaVideo.resume();
-    return await frame.contentWindow.maitaVideo.renderNarration(buffer, wavPath, motion);
+    return await frame.contentWindow.maitaVideo.renderNarration(buffer, wavPath, motion, expressionOptions);
   } finally {
     frame.contentWindow?.maitaVideo?.suspend();
     // Release GPU textures after each export; capacity is recalculated for the next batch.

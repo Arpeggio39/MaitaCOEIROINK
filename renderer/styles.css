@@ -1378,3 +1378,26 @@ button {
 #motionOffset { width: 100px; }
 
 .motion-timing-dialog > .modal-actions { justify-content: flex-end; }
+
+/* Keep export choices compact enough to scan, with breathing room around motion controls. */
+#exportChoiceModal .modal-panel { width: min(720px, 94vw); max-width: 720px; }
+#exportChoiceModal .modal-head { padding: 22px 28px; }
+#exportChoiceModal .export-choice-body { padding: 24px 28px 28px; gap: 14px; }
+#exportChoiceModal .export-choice-button,
+#exportChoiceModal .export-video-option { padding: 16px 18px; min-height: 52px; }
+#exportChoiceModal .motion-options { padding: 22px; margin: 8px 0; }
+#exportChoiceModal .motion-options legend { padding: 0 8px; font-size: 14px; font-weight: 600; }
+#exportChoiceModal .check-row { gap: 12px; align-items: flex-start; line-height: 1.6; }
+#exportChoiceModal .check-row input { flex-shrink: 0; margin-top: 5px; }
+#exportChoiceModal .settings-note { line-height: 1.75; margin: 10px 0 18px; }
+.motion-file-section { border-top: 1px solid var(--border); padding-top: 22px; margin-top: 22px; }
+.motion-file-label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+#exportChoiceModal .motion-options input[type="file"] { padding: 12px; font-size: 13px; }
+.motion-file-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+#exportChoiceModal #btnMotionClear { margin-top: 0; }
+#exportChoiceModal .export-actions { padding-top: 18px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) {
+  #exportChoiceModal .modal-head { padding: 18px; }
+  #exportChoiceModal .export-choice-body { padding: 18px; }
+  #exportChoiceModal .motion-options { padding: 16px; }
+}

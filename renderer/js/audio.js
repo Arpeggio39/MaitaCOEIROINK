@@ -569,7 +569,9 @@ async function writeExportFiles(filePath, buffer, text, originSeconds = 0) {
     const { exportNarrationVideo } = await import('./character-video-host.js');
     try {
       const motion = selectedMotion();
-      await exportNarrationVideo(buffer, filePath, motion ? { ...motion, originSeconds } : null);
+      await exportNarrationVideo(buffer, filePath, motion ? { ...motion, originSeconds } : null, {
+        text, enabled: document.getElementById('videoExpressions').checked,
+      });
     } catch (error) {
       const failure = new Error(`WAVは保存済みですが、動画を保存できませんでした: ${error.message}`);
       failure.name = error.name;
