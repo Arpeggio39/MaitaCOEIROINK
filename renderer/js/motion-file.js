@@ -33,7 +33,7 @@ export function initMotionFile() {
       selected = parsed; offsetSeconds = 0;
       document.getElementById('btnMotionTiming').disabled = false;
       document.getElementById('btnMotionTiming').textContent = 'タイミングを合わせる';
-      info.textContent = `${file.name} · ${parsed.duration.toFixed(1)}秒 — 口の開閉だけ音声に合わせます。`;
+      info.textContent = `${file.name} · ${parsed.duration.toFixed(1)}秒 — 体の動きに使用します。`;
       clear.hidden = false;
     } catch (error) {
       if (current !== generation) return;

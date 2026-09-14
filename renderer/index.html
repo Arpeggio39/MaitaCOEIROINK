@@ -308,13 +308,21 @@
         </label>
 
         <fieldset id="motionOptions" class="motion-options" hidden>
-          <legend>収録モーション（任意）</legend>
-          <label for="motionFile" class="sr-only">Live2Dモーションファイル</label>
+          <legend>動き・表情</legend>
+          <label class="check-row"><input id="videoExpressions" type="checkbox" checked><span>言葉に合わせて表情を変える</span></label>
+          <p class="settings-note">モーションファイル未選択時に「ありがとう」「びっくり」などに反応します。切り替える時刻は音声から推定します。</p>
+          <div class="motion-file-section">
+          <label for="motionFile" class="motion-file-label">収録モーション（任意）</label>
+
           <input id="motionFile" type="file" accept=".motion3.json" class="input">
           <p id="motionFileInfo" class="settings-note" role="status">未選択の場合は自動モーションを使います。</p>
           <label class="check-row"><input id="motionLoop" type="checkbox" checked><span>音声より短い場合は繰り返す</span></label>
+          <p class="settings-note">ファイルを選ぶと、体・視線・表情は収録データを優先し、口の開閉だけ音声に合わせます。</p>
+          <div class="motion-file-actions">
           <button id="btnMotionTiming" type="button" class="btn btn-modal-secondary" disabled>タイミングを合わせる</button>
           <button id="btnMotionClear" type="button" class="btn btn-modal-secondary" hidden>モーションを解除</button>
+          </div>
+          </div>
         </fieldset>
         <p class="settings-note">音声の書き出しでは、設定に従いWAVと必要に応じて同名のtxtを保存します。</p>
         <div class="export-actions"><button type="button" id="btnStartExport" class="btn btn-modal-primary">出力する</button></div>

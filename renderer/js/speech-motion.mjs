@@ -4,13 +4,13 @@ const smooth = (value) => { const x = clamp(value, 0, 1); return x * x * x * (10
 const pulse = (time, center, width) => Math.exp(-0.5 * ((time - center) / width) ** 2);
 export const SECONDARY_PARAMETERS = new Set(['Param79', 'Param80', 'Param81', 'Param83', 'Param84', 'Param85']);
 export const MOTION_LIMITS = {
-  ParamAngleX: 12, ParamAngleY: 10, ParamAngleZ: 7,
-  ParamBodyAngleX: 4.5, ParamBodyAngleY: 3, ParamBodyAngleZ: 3,
-  ParamPositionX2: 5, ParamPositionZ: 3,
+  ParamAngleX: 26, ParamAngleY: 22, ParamAngleZ: 18,
+  ParamBodyAngleX: 9, ParamBodyAngleY: 7, ParamBodyAngleZ: 7,
+  ParamPositionX2: 12, ParamPositionZ: 5,
   ParamEyeBallX: 0.5, ParamEyeBallY: 0.3,
   ParamEyeLOpen: 1, ParamEyeROpen: 1, ParamBrowLY: 0.3, ParamBrowRY: 0.3,
-  ParamBreath: 1, Param79: 0.28, Param80: 0.32, Param81: 0.18,
-  Param83: 0.28, Param84: 0.32, Param85: 0.18,
+  ParamBreath: 1, Param79: 0.75, Param80: 0.85, Param81: 0.5,
+  Param83: 0.75, Param84: 0.85, Param85: 0.5,
 };
 const keys = Object.keys(MOTION_LIMITS);
 export function neutralSpeechPose() {
@@ -73,6 +73,11 @@ export function createSpeechMotion(envelope, seed = audioSeed(envelope)) {
       }
     }
   }
+  // Sparse broad gestures vary their side, scale and hold duration; pauses stay calmer.
+  const gestures = phrases.filter((_, i) => i % 2 === 0).map(phrase => ({
+    time: phrase.start + .4, width: .55 + random() * .65,
+    strength: (.45 + random() * .55) * (random() < .5 ? -1 : 1),
+  }));
   const blinks = [];
   for (let time = 1.8 + random() * 2; time < duration;) {
     const boundary = phrases.find(p => p.end >= time - 0.6 && p.end <= time + 0.7);
@@ -85,8 +90,8 @@ export function createSpeechMotion(envelope, seed = audioSeed(envelope)) {
   }
   const gazeX = curve(random, duration, 2.5, 0.32, true);
   const gazeY = curve(random, duration, 3.2, 0.17, true);
-  const stance = curve(random, duration, 5.2, 1);
-  const tilt = curve(random, duration, 3.8, 2.3);
+  const stance = curve(random, duration, 3.8, 1);
+  const tilt = curve(random, duration, 2.8, 6);
   const breath = curve(random, duration, 2.1, 1);
   const rate = 60;
   const frames = [];
@@ -107,7 +112,11 @@ export function createSpeechMotion(envelope, seed = audioSeed(envelope)) {
       gesture += beat.side * beat.strength * pulse(time, beat.time + 0.2, 0.32);
       shoulder += beat.side * beat.strength * pulse(time, beat.time + 0.28, 0.38);
     }
-    const weight = curveAt(stance, time);
+    let flourish = 0;
+    for (const event of gestures) {
+      if (Math.abs(time - event.time) < event.width * 4) flourish += event.strength * pulse(time, event.time, event.width);
+    }
+    const weight = curveAt(stance, time) * (.55 + .45 * speaking);
     const gx = curveAt(gazeX, time, 0.16), gy = curveAt(gazeY, time, 0.18);
     const headGazeX = curveAt(gazeX, time - 0.12, 0.4);
     const headGazeY = curveAt(gazeY, time - 0.12, 0.4);
@@ -118,22 +127,22 @@ export function createSpeechMotion(envelope, seed = audioSeed(envelope)) {
     }
     const breathing = 0.35 + 0.13 * curveAt(breath, time) + 0.28 * inhale;
     const target = {
-      ParamAngleX: headGazeX * 14 + weight * 3 + gesture * 3.4,
-      ParamAngleY: headGazeY * 12 + nod + inhale * 0.7,
-      ParamAngleZ: curveAt(tilt, time) - weight * 0.9 + gesture * 1.2,
-      ParamBodyAngleX: weight * 3.2 + gesture * 2.3,
-      ParamBodyAngleY: speaking * 1.0 + inhale * 0.7 + nod * 0.2,
-      ParamBodyAngleZ: -weight * 1.7 + gesture * 0.85,
-      ParamPositionX2: weight * 3.5,
-      ParamPositionZ: inhale * 0.65 + breathing * 0.3,
+      ParamAngleX: headGazeX * 25 + weight * 7 + gesture * 8 + flourish * 5,
+      ParamAngleY: headGazeY * 18 + nod * 1.5 + inhale * 2 + flourish * 2,
+      ParamAngleZ: curveAt(tilt, time) - weight * 2 + gesture * 3,
+      ParamBodyAngleX: weight * 5 + gesture * 4 + flourish * 2,
+      ParamBodyAngleY: speaking * 2 + inhale * 1.4 + nod * 0.35,
+      ParamBodyAngleZ: -weight * 3.2 + gesture * 2,
+      ParamPositionX2: weight * 8,
+      ParamPositionZ: inhale * 1.3 + breathing * .6,
       ParamEyeBallX: gx - state.ParamAngleX / 90,
       ParamEyeBallY: gy - state.ParamAngleY / 120,
       ParamEyeLOpen: eye, ParamEyeROpen: eye,
       ParamBrowLY: Math.max(0, -nod) * 0.04 + inhale * 0.05,
       ParamBrowRY: Math.max(0, -nod) * 0.035 + inhale * 0.05,
       ParamBreath: breathing,
-      Param79: shoulder * 0.2, Param80: shoulder * 0.26, Param81: shoulder * 0.12,
-      Param83: -shoulder * 0.17, Param84: -shoulder * 0.22, Param85: -shoulder * 0.1,
+      Param79: shoulder * .5 + flourish * .25, Param80: shoulder * .65 + flourish * .3, Param81: shoulder * .3,
+      Param83: -shoulder * .45 + flourish * .2, Param84: -shoulder * .55 + flourish * .25, Param85: -shoulder * .25,
     };
     for (const key of keys) {
       if (/Eye[LR]Open/.test(key)) { state[key] = target[key]; continue; }
