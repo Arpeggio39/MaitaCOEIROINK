@@ -12,7 +12,7 @@ export function initCharacterVideo() {
       controller = current;
       stopPlayback();
       try {
-        return await buildPlaybackUtterance(48000, current.signal, { all: scope === 'all' });
+        return await buildPlaybackUtterance(48000, current.signal, { all: scope === 'all', includeTiming: true });
       } finally {
         if (controller === current) controller = null;
       }

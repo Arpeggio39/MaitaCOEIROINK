@@ -1,4 +1,5 @@
-import { createExpressionCues, expressionAt } from './speech-expression.mjs';
+import { expressionAt, blendExpressionValue } from './speech-expression.mjs';
+import { EXPRESSION_DEFAULTS } from './speech-cues.mjs';
 import { createGpuFrameBounds } from './gpu-frame-bounds.js';
 import { mergeFrameBounds, frameFromBounds } from './frame-bounds.mjs';
 import { alignedMotionTime } from './motion-timing.mjs';
@@ -56,7 +57,7 @@ async function audioContext() {
   return context;
 }
 
-async function loadAudio(buffer, name) {
+async function loadAudio(buffer, name, acting = {}) {
   const ctx = await audioContext();
   let decoded;
   try {
@@ -68,24 +69,28 @@ async function loadAudio(buffer, name) {
     throw new Error('ローカル試作版では10分以内になるよう文章を短くしてください。');
   }
   const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) => decoded.getChannelData(index).slice());
-  const result = await (host?.compute || compute)('speech', { channels, sampleRate: decoded.sampleRate }, channels.map(channel => channel.buffer));
+  const result = await (host?.compute || compute)('speech', {
+    channels, sampleRate: decoded.sampleRate, text: acting.text, segments: acting.segments,
+  }, channels.map(channel => channel.buffer));
   return { decoded, result: result.envelope, plan: result.plan, name };
 }
 
-async function prepareAudio(getBuffer, name) {
+async function prepareAudio(getBuffer, name, acting = {}) {
   stop();
   const generation = ++operation;
   busy = true;
   updateControls();
   status('音声を準備しています…');
   try {
-    const buffer = await getBuffer();
+    const utterance = await getBuffer();
     if (generation !== operation) return;
-    const loaded = await loadAudio(buffer, name);
+    const options = utterance?.text ? { ...acting, ...utterance } : acting;
+    const loaded = await loadAudio(utterance?.buffer ?? utterance, name, options);
     if (generation !== operation) return;
     audio = loaded.decoded;
     envelope = loaded.result;
     performancePlan = loaded.plan;
+    expressionCues = !recorded && options.enabled !== false ? performancePlan.cues : [];
     elapsed = 0;
     $('videoAudioName').textContent = `${loaded.name}（${audio.duration.toFixed(1)}秒）`;
     updateTime();
@@ -133,8 +138,10 @@ function drawFrame(delta) {
   const blend = 1 - Math.exp(-delta / 100);
   for (const key of Object.keys(currentPose)) {
     const value = /Eye[LR]Open/.test(key) ? target[key] : target[key] * strength;
-    // Eyelids follow the timed blink directly; posture transitions settle smoothly.
-    currentPose[key] = /Eye[LR]Open/.test(key) ? value : currentPose[key] + (value - currentPose[key]) * blend;
+    // The performance is already smoothed at 60 Hz. A second display-rate filter
+    // delays gaze and gestures relative to speech and makes export differ from playback.
+    currentPose[key] = running || exporting || /Eye[LR]Open/.test(key)
+      ? value : currentPose[key] + (value - currentPose[key]) * blend;
   }
   model.update(delta);
   if (analysisTarget) analysisTarget.render(app.stage); else app.renderer.render(app.stage);
@@ -310,10 +317,9 @@ window.maitaVideo = {
   async renderNarration(buffer, wavPath, motion = null, expressionOptions = {}) {
     document.body.classList.add('is-companion-export');
     try {
-      const loaded = await prepareAudio(() => Promise.resolve(buffer), '書き出すナレーション');
-      if (!loaded) throw new Error($('videoStatus').textContent);
       recorded = motion;
-      expressionCues = !recorded && expressionOptions.enabled ? createExpressionCues(expressionOptions.text, envelope) : [];
+      const loaded = await prepareAudio(() => Promise.resolve(buffer), '書き出すナレーション', expressionOptions);
+      if (!loaded) throw new Error($('videoStatus').textContent);
       if (recorded) {
         const ids = new Set(model.internalModel.coreModel._parameterIds);
         if (!recorded.motion.curves.some(curve => curve.target === 'Parameter' && ids.has(curve.id))) {
@@ -340,6 +346,7 @@ window.maitaVideo = {
 
 $('videoSynthesize').addEventListener('click', () => {
   const scope = $('videoScope').value;
+  recorded = null;
   void prepareAudio(() => host.synthesize(scope), scope === 'all' ? '全文のナレーション' : '選択範囲のナレーション');
 });
 $('videoPlay').addEventListener('click', () => void play());
@@ -363,6 +370,7 @@ try {
   // Feed intentions before physics so the rig propagates torso motion into sleeves,
   // hands and hair. The previous post-physics hook prevented this propagation.
   model.internalModel.breath = undefined;
+  model.internalModel.eyeBlink = undefined;
   const core = model.internalModel.coreModel;
   const indices = new Map(core._parameterIds.map((id, index) => [id, index]));
   const apply = (id, value, additive = false) => {
@@ -373,14 +381,12 @@ try {
   };
   const parts = new Map(core._partIds.map((id, index) => [id, index]));
   function applyExpression() {
-    if (recorded) return;
-    for (const [id, { value, strength }] of Object.entries(expressionAt(expressionCues, elapsed))) {
+    if (recorded || !(running || exporting)) return;
+    for (const [id, expression] of Object.entries(expressionAt(expressionCues, elapsed))) {
       const index = indices.get(id);
       if (index === undefined) continue;
       const base = core.getParameterValueByIndex(index);
-      // Eyelid expression scales the captured blink, so eyes can still close fully.
-      const target = /Eye[LR]Open/.test(id) ? base * value : value;
-      apply(id, base + (target - base) * strength);
+      apply(id, blendExpressionValue(id, base, expression));
     }
   }
   function applyRecording() {
@@ -405,15 +411,18 @@ try {
     for (const [id, value] of Object.entries(currentPose)) {
       if (!SECONDARY_PARAMETERS.has(id)) apply(id, value);
     }
+    // Reset expression-only controls so a smile never leaks into a later sentence.
+    for (const [id, value] of Object.entries(EXPRESSION_DEFAULTS)) {
+      if (!Object.hasOwn(currentPose, id)) apply(id, value);
+    }
     const mouth = exporting || (running && context.currentTime >= startedAt)
       ? mouthAt(envelope, elapsed, Number($('videoSensitivity').value)) : 0;
     apply('ParamMouthOpenY', mouth);
-    apply('ParamMouthForm', 0);
+    applyExpression();
   });
   model.internalModel.on('beforeModelUpdate', () => {
     if (recorded) { applyRecording(); return; }
     for (const id of SECONDARY_PARAMETERS) apply(id, currentPose[id], true);
-    applyExpression();
   });
   app.stage.addChild(model);
   fitVideoToCharacter();
