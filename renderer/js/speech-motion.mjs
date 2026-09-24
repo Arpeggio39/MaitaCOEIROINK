@@ -1,16 +1,16 @@
-// Audio-timed, reproducible performance. Randomness chooses intentions, never frame noise.
+// Reproducible, audio-timed acting. Randomness selects held intentions, never frame noise.
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const smooth = (value) => { const x = clamp(value, 0, 1); return x * x * x * (10 + x * (-15 + x * 6)); };
-const pulse = (time, center, width) => Math.exp(-0.5 * ((time - center) / width) ** 2);
-export const SECONDARY_PARAMETERS = new Set(['Param79', 'Param80', 'Param81', 'Param83', 'Param84', 'Param85']);
+const smooth = value => { const x = clamp(value, 0, 1); return x * x * x * (10 + x * (-15 + x * 6)); };
+const pulse = (time, center, width) => Math.exp(-.5 * ((time - center) / width) ** 2);
+export const SECONDARY_PARAMETERS = new Set(['Param79', 'Param80', 'Param81', 'Param82', 'Param83', 'Param84', 'Param85', 'Param86']);
 export const MOTION_LIMITS = {
   ParamAngleX: 26, ParamAngleY: 22, ParamAngleZ: 18,
-  ParamBodyAngleX: 9, ParamBodyAngleY: 7, ParamBodyAngleZ: 7,
-  ParamPositionX2: 12, ParamPositionZ: 5,
-  ParamEyeBallX: 0.5, ParamEyeBallY: 0.3,
-  ParamEyeLOpen: 1, ParamEyeROpen: 1, ParamBrowLY: 0.3, ParamBrowRY: 0.3,
-  ParamBreath: 1, Param79: 0.75, Param80: 0.85, Param81: 0.5,
-  Param83: 0.75, Param84: 0.85, Param85: 0.5,
+  ParamBodyAngleX: 9, ParamBodyAngleY: 8.5, ParamBodyAngleZ: 8,
+  ParamPositionX2: 22, ParamPositionZ: 18,
+  ParamEyeBallX: .5, ParamEyeBallY: .3,
+  ParamEyeLOpen: 1, ParamEyeROpen: 1, ParamBrowLY: .3, ParamBrowRY: .3,
+  ParamBreath: 1, Param79: .75, Param80: .85, Param81: .5, Param82: .25,
+  Param83: .75, Param84: .85, Param85: .5, Param86: .25,
 };
 const keys = Object.keys(MOTION_LIMITS);
 export function neutralSpeechPose() {
@@ -25,135 +25,249 @@ function audioSeed(envelope) {
   for (let i = 0; i < envelope.values.length; i += 13) seed = Math.imul(seed ^ Math.round(envelope.values[i] * 1000), 16777619);
   return seed >>> 0;
 }
-function curve(random, duration, interval, amplitude, camera = false) {
+function curve(random, duration, interval, amplitude) {
   const points = [{ time: 0, value: 0 }];
-  let time = 0;
-  while (time < duration + 10) {
-    time += interval * (0.7 + random() * 0.7);
-    points.push({ time, value: camera && random() < 0.65 ? 0 : (random() * 2 - 1) * amplitude });
+  for (let time = interval; time < duration + interval;) {
+    points.push({ time, value: (random() * 2 - 1) * amplitude });
+    time += interval * (.8 + random() * .7);
   }
   return points;
 }
-function curveAt(points, time, transition = 0.9) {
-  let low = 0, high = points.length - 1;
+function curveAt(points, time, transition = 1.2, field = 'value') {
+  let low = 0, high = points.length;
   while (low + 1 < high) { const mid = (low + high) >> 1; if (points[mid].time <= time) low = mid; else high = mid; }
-  const a = points[low], b = points[high];
-  // Hold a chosen pose, then ease to a new one. Each limb follows with its own inertia.
-  return a.value + (b.value - a.value) * smooth((time - b.time + transition) / transition);
+  const a = points[Math.max(0, low - 1)], b = points[low];
+  // A point marks movement onset, not arrival: eyes must start before the head.
+  return a[field] + (b[field] - a[field]) * smooth((time - b.time) / transition);
 }
 function phrasesFrom(envelope) {
   const phrases = [];
   let start = null, last = 0;
   for (let i = 0; i <= envelope.values.length; i++) {
     const time = i / envelope.rate;
-    if ((envelope.values[i] || 0) > 0.16) { start ??= time; last = time; }
-    if (start !== null && (time - last > 0.25 || i === envelope.values.length)) {
-      if (last - start > 0.12) phrases.push({ start, end: last });
+    if ((envelope.values[i] || 0) > .12) { start ??= time; last = time; }
+    if (start !== null && (time - last > .28 || i === envelope.values.length)) {
+      if (last - start > .1) phrases.push({ start, end: last });
       start = null;
     }
   }
   return phrases;
 }
-
-export function createSpeechMotion(envelope, seed = audioSeed(envelope)) {
-  const random = randomSource(seed);
-  const duration = envelope.duration + 2;
-  const phrases = phrasesFrom(envelope);
-  const beats = [];
-  let nextBeat = 0;
+function makePostures(phrases, random) {
+  const postures = [{ time: -.5, x: 0, lean: 0 }];
+  let side = random() < .5 ? -1 : 1, next = 0;
   for (const phrase of phrases) {
-    beats.push({ time: phrase.start + 0.12, strength: 0.45, side: random() < 0.5 ? -1 : 1 });
-    nextBeat = Math.max(nextBeat, phrase.start + 0.85);
-    for (let time = nextBeat; time < phrase.end - 0.15; time += 0.01) {
-      const i = Math.floor(time * envelope.rate), value = envelope.values[i] || 0;
-      if (value > 0.55 && value >= (envelope.values[i - 8] || 0) + 0.06 && value >= (envelope.values[i + 8] || 0)) {
-        beats.push({ time, strength: 0.45 + random() * 0.5, side: random() < 0.5 ? -1 : 1 });
-        time += 0.85 + random() * 0.8;
-        nextBeat = time;
+    for (let time = Math.max(next, phrase.start - .18, 0); time < phrase.end - .2;) {
+      // Commit to a whole-body stance, hold it, then transfer weight across it.
+      // A short clip should move too; don't wait several seconds for the first pose.
+      side = random() < .8 ? -side : side;
+      postures.push({ time, x: side * (.58 + random() * .3), lean: (random() < .65 ? 1 : -1) * (.45 + random() * .35) });
+      time += 2.4 + random() * 1.5;
+      next = time;
+    }
+  }
+  return postures;
+}
+function gesturePose(kind, side) {
+  const arm = side > 0 ? ['Param79', 'Param80', 'Param81', 'Param82'] : ['Param83', 'Param84', 'Param85', 'Param86'];
+  const present = { [arm[0]]: .28, [arm[1]]: .5, [arm[2]]: .26, [arm[3]]: .1 };
+  switch (kind) {
+    case 'thanks': return { ParamAngleY: -17, ParamBodyAngleY: -7, ParamPositionZ: -7, ParamEyeBallY: -.05, Param79: .12, Param83: .1 };
+    case 'apology': return { ParamAngleY: -18, ParamBodyAngleY: -7.5, ParamPositionZ: -8, ParamAngleZ: side * 2, Param79: -.16, Param83: -.13 };
+    case 'sad': return { ParamAngleY: -7, ParamAngleZ: side * 4, ParamBodyAngleY: -2.5, Param79: -.13, Param83: -.1 };
+    case 'surprise': return { ParamAngleY: 7, ParamBodyAngleY: -4.5, ParamPositionZ: -7, Param79: .3, Param83: .24, Param80: .23, Param84: .18 };
+    case 'question': return { ...present, ParamAngleZ: side * 11, ParamAngleY: 3, ParamBodyAngleX: side * 2.5, ParamBodyAngleZ: side * 3, ParamPositionX2: side * 3 };
+    case 'thinking': return { ParamAngleZ: side * 7, ParamAngleY: 3.5, ParamBodyAngleX: side * 2.6, ParamBodyAngleZ: side * 1.8 };
+    case 'happy': return { ...present, ParamAngleY: 3, ParamAngleZ: side * 5, ParamBodyAngleY: 3.5, ParamPositionZ: 4 };
+    case 'greeting': return { ...present, ParamAngleY: -5, ParamBodyAngleX: side * 3, ParamBodyAngleY: 2, ParamAngleZ: side * 4 };
+    case 'agree': case 'nod': return { ParamAngleY: -8, ParamBodyAngleY: -2.2, ParamPositionZ: -.5, ParamBrowLY: .07, ParamBrowRY: .06 };
+    case 'contrast': return { ...present, ParamAngleX: side * 12, ParamBodyAngleX: side * 4.5, ParamBodyAngleZ: -side * 2, ParamPositionX2: side * 3, ParamAngleZ: -side * 3 };
+    case 'explain': case 'present': return { ...present, ParamAngleX: side * 12, ParamBodyAngleX: side * 4, ParamBodyAngleY: 1.8, ParamPositionX2: side * 2.5, ParamAngleY: -2.5, ParamBrowLY: .1, ParamBrowRY: .08 };
+    case 'tilt': return { ParamAngleZ: side * 7, ParamBodyAngleZ: side * 2.2, ParamBodyAngleX: side * 1.5, ParamAngleY: -1.2 };
+    default: return { [arm[0]]: .12, [arm[1]]: .21, [arm[2]]: .1, ParamAngleY: -3.2, ParamBodyAngleY: 1.3 };
+  }
+}
+function gestureShape(event, time) {
+  const age = time - event.time;
+  return smooth((age + event.attack) / event.attack) * (1 - smooth((age - event.hold) / event.release))
+    - .12 * pulse(age, -event.attack - .12, .095);
+}
+function makeGestures(envelope, phrases, cues, random) {
+  const beats = [], gestures = [];
+  const kinds = ['nod', 'present', 'beat', 'tilt'];
+  let previousKind = -1, nextBeat = 0;
+  const shoulder = Math.max(1, Math.round(envelope.rate * .1));
+  for (const phrase of phrases) {
+    const add = (time, strength) => {
+      // An intentional reaction occupies the body; don't nod through an apology.
+      if (cues.some(cue => time > cue.time - .65 && time < cue.time + cue.hold + .6)) return;
+      const side = random() < .58 ? 1 : -1;
+      const kind = (previousKind + 1 + Math.floor(random() * (kinds.length - 1))) % kinds.length;
+      previousKind = kind;
+      beats.push({ time, strength, side });
+      gestures.push({ time, kind: kinds[kind], strength, side, attack: .24, hold: kind === 0 ? .06 : .2, release: .65 + random() * .3 });
+    };
+    if (phrase.end - phrase.start > .3 && phrase.start >= nextBeat) {
+      add(phrase.start + Math.min(.24, (phrase.end - phrase.start) * .3), .48);
+      nextBeat = phrase.start + 1.5;
+    }
+    for (let i = Math.ceil(Math.max(nextBeat, phrase.start) * envelope.rate); i < (phrase.end - .15) * envelope.rate; i++) {
+      const value = envelope.values[i] || 0;
+      const prominence = value - Math.min(envelope.values[i - shoulder] || 0, envelope.values[i + shoulder] || 0);
+      if (value > .5 && prominence > .08 && value >= (envelope.values[i + shoulder] || 0)) {
+        add(i / envelope.rate, clamp(.35 + prominence * .85, .35, .85));
+        nextBeat = i / envelope.rate + 1.35 + random() * .8;
+        i = Math.ceil(nextBeat * envelope.rate);
       }
     }
   }
-  // Sparse broad gestures vary their side, scale and hold duration; pauses stay calmer.
-  const gestures = phrases.filter((_, i) => i % 2 === 0).map(phrase => ({
-    time: phrase.start + .4, width: .55 + random() * .65,
-    strength: (.45 + random() * .55) * (random() < .5 ? -1 : 1),
-  }));
-  const blinks = [];
-  for (let time = 1.8 + random() * 2; time < duration;) {
-    const boundary = phrases.find(p => p.end >= time - 0.6 && p.end <= time + 0.7);
-    time = boundary ? boundary.end + 0.14 : time;
-    if (!blinks.length || time - blinks.at(-1).time > 1.1) {
-      blinks.push({ time, length: 0.16 + random() * 0.08 });
-      if (random() < 0.12) blinks.push({ time: time + 0.32, length: 0.16 });
-    }
-    time += 2.8 + random() * 3.1;
+  for (const cue of cues) gestures.push({
+    time: cue.time + .04, kind: cue.kind, strength: .85 + random() * .12,
+    side: random() < .58 ? 1 : -1,
+    attack: cue.kind === 'surprise' ? .14 : .32,
+    hold: /thanks|apology/.test(cue.kind) ? .3 : Math.min(.8, cue.hold * .6),
+    release: /thanks|apology|sad/.test(cue.kind) ? 1.05 : .8,
+  });
+  gestures.sort((a, b) => a.time - b.time);
+  for (const event of gestures) event.pose = gesturePose(event.kind, event.side);
+  return { beats, gestures };
+}
+function makeGaze(duration, phrases, gestures, random) {
+  const events = [{ time: -.5, x: 0, y: 0, priority: 2 }];
+  for (let time = 2.5 + random() * 2; time < duration; time += 3.5 + random() * 2.5) {
+    const speaking = phrases.some(p => time >= p.start && time <= p.end);
+    const away = random() < .18;
+    events.push({ time, x: away ? (random() < .5 ? -1 : 1) * (.16 + random() * .1) * (speaking ? 1 : .5) : 0, y: away ? .04 + random() * .07 : 0, priority: 0 });
+    if (away) events.push({ time: time + .9 + random() * .5, x: 0, y: 0, priority: 0 });
   }
-  const gazeX = curve(random, duration, 2.5, 0.32, true);
-  const gazeY = curve(random, duration, 3.2, 0.17, true);
-  const stance = curve(random, duration, 3.8, 1);
-  const tilt = curve(random, duration, 2.8, 6);
-  const breath = curve(random, duration, 2.1, 1);
-  const rate = 60;
-  const frames = [];
-  let state = neutralSpeechPose(), velocity = neutralSpeechPose();
-  for (const key of keys) velocity[key] = 0;
+  for (const event of gestures) {
+    if (!/thinking|question|thanks|apology|sad|greeting|explain|surprise/.test(event.kind)) continue;
+    const thinking = /thinking|question/.test(event.kind), down = /thanks|apology|sad/.test(event.kind);
+    events.push({ time: Math.max(0, event.time - .28), x: thinking ? event.side * .26 : 0, y: thinking ? .12 : down ? -.14 : 0, priority: 1 });
+    events.push({ time: event.time + event.hold + .45, x: 0, y: 0, priority: 1 });
+  }
+  events.sort((a, b) => a.time - b.time || a.priority - b.priority);
+  const gaze = [];
+  for (const event of events) {
+    const previous = gaze.at(-1);
+    if (previous && event.time - previous.time < .3) {
+      if (event.priority >= previous.priority) gaze[gaze.length - 1] = event;
+    } else gaze.push(event);
+  }
+  return gaze;
+}
+function makeBlinks(duration, phrases, cues, random) {
+  const blinks = [];
+  for (let time = 1.6 + random() * 1.5; time < duration;) {
+    const boundary = phrases.find(p => p.end >= time - .45 && p.end <= time + .6);
+    if (boundary) time = boundary.end + .1;
+    const surprise = cues.find(cue => cue.kind === 'surprise' && time > cue.time - .25 && time < cue.time + .65);
+    if (surprise) time = surprise.time + .8;
+    if (!blinks.length || time - blinks.at(-1).time > 1.3) {
+      blinks.push({ time, length: .17 + random() * .07 });
+      if (random() < .09) blinks.push({ time: time + .3, length: .17 });
+    }
+    time += 2.5 + random() * 3;
+  }
+  return blinks;
+}
+function lidAt(blinks, time) {
+  for (const blink of blinks) {
+    if (blink.time > time) break;
+    const phase = (time - blink.time) / blink.length;
+    if (phase >= 0 && phase <= 1) return phase < .36 ? 1 - smooth(phase / .36) : smooth((phase - .36) / .64);
+  }
+  return 1;
+}
+
+export function createSpeechMotion(envelope, seed = audioSeed(envelope), cues = []) {
+  const random = randomSource(seed), duration = envelope.duration + 2;
+  const phrases = phrasesFrom(envelope);
+  const { beats, gestures } = makeGestures(envelope, phrases, cues, random);
+  const postures = makePostures(phrases, random);
+  for (const event of gestures) {
+    // A leftward gesture should not cancel a simultaneous rightward stance.
+    // Use one direction for the weight transfer and its head/arm gesture.
+    const posture = postures.findLast(p => p.time <= event.time);
+    if (posture?.x && event.kind !== 'contrast') {
+      event.side = Math.sign(posture.x);
+      event.pose = gesturePose(event.kind, event.side);
+    }
+  }
+  const gaze = makeGaze(duration, phrases, gestures, random);
+  const blinks = makeBlinks(duration, phrases, cues, random);
+  const stance = curve(random, duration, 4.3, .85);
+  const tilt = curve(random, duration, 4.4, 3.5);
+  const breaths = [{ time: 0, length: 3.8 }];
+  while (breaths.at(-1).time < duration) {
+    const last = breaths.at(-1);
+    breaths.push({ time: last.time + last.length, length: 3.4 + random() * 1.3 });
+  }
+  const rate = 60, frames = [], state = neutralSpeechPose();
+  const velocity = Object.fromEntries(keys.map(key => [key, 0]));
+  let phraseIndex = 0, gestureIndex = 0, breathIndex = 0;
   for (let frame = 0; frame <= Math.ceil(duration * rate); frame++) {
     const time = frame / rate;
-    let speaking = 0, inhale = 0, nod = 0, gesture = 0, shoulder = 0;
-    for (const p of phrases) {
-      if (time > p.end + 1 || time < p.start - 1) continue;
-      speaking = Math.max(speaking, smooth((time - p.start + 0.2) / 0.4) * (1 - smooth((time - p.end) / 0.65)));
-      inhale = Math.max(inhale, pulse(time, p.start - 0.16, 0.22));
+    while (phrases[phraseIndex]?.end < time - 1) phraseIndex++;
+    while (gestures[gestureIndex] && gestures[gestureIndex].time + gestures[gestureIndex].hold + gestures[gestureIndex].release + .4 < time) gestureIndex++;
+    while (breaths[breathIndex + 1]?.time <= time) breathIndex++;
+    let speaking = 0, inhale = 0;
+    for (let i = phraseIndex; i < phrases.length && phrases[i].start < time + .6; i++) {
+      const p = phrases[i];
+      speaking = Math.max(speaking, smooth((time - p.start + .25) / .45) * (1 - smooth((time - p.end) / .8)));
+      inhale = Math.max(inhale, pulse(time, p.start - .2, .2));
     }
-    for (const beat of beats) {
-      if (Math.abs(time - beat.time) > 1.3) continue;
-      // Small anticipation, decisive nod, slower recovery. Torso and arms lag behind.
-      nod += beat.strength * (1.1 * pulse(time, beat.time - 0.13, 0.13) - 6.5 * pulse(time, beat.time + 0.12, 0.19));
-      gesture += beat.side * beat.strength * pulse(time, beat.time + 0.2, 0.32);
-      shoulder += beat.side * beat.strength * pulse(time, beat.time + 0.28, 0.38);
+    const breath = breaths[breathIndex], phase = (time - breath.time) / breath.length;
+    const breathing = .2 + .25 * (phase < .36 ? smooth(phase / .36) : 1 - smooth((phase - .36) / .64));
+    const activity = .08 + .92 * speaking;
+    const weight = curveAt(postures, time, 1.05, 'x') * activity;
+    const headWeight = curveAt(postures, time - .16, 1.2, 'x') * activity;
+    let reaction = 0;
+    for (let i = gestureIndex; i < gestures.length && gestures[i].time < time + .85; i++) {
+      if (/thanks|apology|surprise|sad/.test(gestures[i].kind)) reaction = Math.max(reaction, gestureShape(gestures[i], time));
     }
-    let flourish = 0;
-    for (const event of gestures) {
-      if (Math.abs(time - event.time) < event.width * 4) flourish += event.strength * pulse(time, event.time, event.width);
-    }
-    const weight = curveAt(stance, time) * (.55 + .45 * speaking);
-    const gx = curveAt(gazeX, time, 0.16), gy = curveAt(gazeY, time, 0.18);
-    const headGazeX = curveAt(gazeX, time - 0.12, 0.4);
-    const headGazeY = curveAt(gazeY, time - 0.12, 0.4);
-    let eye = 1;
-    for (const blink of blinks) {
-      const phase = (time - blink.time) / blink.length;
-      if (phase >= 0 && phase <= 1) eye = Math.min(eye, phase < 0.4 ? 1 - smooth(phase / 0.4) : smooth((phase - 0.4) / 0.6));
-    }
-    const breathing = 0.35 + 0.13 * curveAt(breath, time) + 0.28 * inhale;
+    const leaning = activity * (1 - .9 * clamp(reaction, 0, 1));
+    const lean = curveAt(postures, time, 1.3, 'lean') * leaning;
+    const headLean = curveAt(postures, time - .16, 1.4, 'lean') * leaning;
+    const restingWeight = curveAt(stance, time) * .08 * (1 - speaking);
+    const gx = curveAt(gaze, time, .12, 'x'), gy = curveAt(gaze, time, .14, 'y');
     const target = {
-      ParamAngleX: headGazeX * 25 + weight * 7 + gesture * 8 + flourish * 5,
-      ParamAngleY: headGazeY * 18 + nod * 1.5 + inhale * 2 + flourish * 2,
-      ParamAngleZ: curveAt(tilt, time) - weight * 2 + gesture * 3,
-      ParamBodyAngleX: weight * 5 + gesture * 4 + flourish * 2,
-      ParamBodyAngleY: speaking * 2 + inhale * 1.4 + nod * 0.35,
-      ParamBodyAngleZ: -weight * 3.2 + gesture * 2,
-      ParamPositionX2: weight * 8,
-      ParamPositionZ: inhale * 1.3 + breathing * .6,
+      ...neutralSpeechPose(),
+      ParamAngleX: curveAt(gaze, time - .15, .42, 'x') * 22 * (.25 + .75 * speaking) + headWeight * 12 + restingWeight * 3,
+      ParamAngleY: curveAt(gaze, time - .15, .42, 'y') * 13 * (.25 + .75 * speaking) + headLean * 4.5 + inhale * .8,
+      ParamAngleZ: curveAt(tilt, time) * (.2 + .8 * speaking) + headWeight * 6,
+      ParamBodyAngleX: weight * 5.8 + restingWeight * 3, ParamBodyAngleY: speaking * 1.1 + lean * 3.5 + inhale * .8,
+      ParamBodyAngleZ: weight * 4.8, ParamPositionX2: weight * 16 + restingWeight * 4,
+      ParamPositionZ: lean * 9 + (breathing - .2) * .8 + inhale * .6,
       ParamEyeBallX: gx - state.ParamAngleX / 90,
       ParamEyeBallY: gy - state.ParamAngleY / 120,
-      ParamEyeLOpen: eye, ParamEyeROpen: eye,
-      ParamBrowLY: Math.max(0, -nod) * 0.04 + inhale * 0.05,
-      ParamBrowRY: Math.max(0, -nod) * 0.035 + inhale * 0.05,
-      ParamBreath: breathing,
-      Param79: shoulder * .5 + flourish * .25, Param80: shoulder * .65 + flourish * .3, Param81: shoulder * .3,
-      Param83: -shoulder * .45 + flourish * .2, Param84: -shoulder * .55 + flourish * .25, Param85: -shoulder * .25,
+      ParamEyeLOpen: lidAt(blinks, time), ParamEyeROpen: lidAt(blinks, time - .006),
+      ParamBrowLY: inhale * .035, ParamBrowRY: inhale * .03,
+      ParamBreath: clamp(breathing + inhale * .2, 0, 1),
     };
+    for (let i = gestureIndex; i < gestures.length && gestures[i].time < time + .85; i++) {
+      const event = gestures[i];
+      for (const [key, value] of Object.entries(event.pose)) {
+        const lag = /^Param8[126]$|^Param85$/.test(key) ? .2 : SECONDARY_PARAMETERS.has(key) ? .12 : /Body|Position/.test(key) ? .08 : 0;
+        target[key] += value * event.strength * gestureShape(event, time - lag);
+      }
+    }
     for (const key of keys) {
       if (/Eye[LR]Open/.test(key)) { state[key] = target[key]; continue; }
-      const frequency = /EyeBall/.test(key) ? 24 : /Body|Position|^Param8|^Param79/.test(key) ? 7 : 12;
-      // Critically damped spring, integrated at a fixed rate, independent of display FPS.
-      velocity[key] += (frequency ** 2 * (target[key] - state[key]) - 2 * frequency * velocity[key]) / rate;
-      state[key] = clamp(state[key] + velocity[key] / rate, key === 'ParamBreath' ? 0 : -MOTION_LIMITS[key], MOTION_LIMITS[key]);
+      const frequency = /EyeBall/.test(key) ? 32 : /Body|Position/.test(key) ? 8 : SECONDARY_PARAMETERS.has(key) ? 10 : 14;
+      // Exact critically damped spring, with a velocity budget to avoid abrupt starts.
+      const displacement = state[key] - target[key], impulse = velocity[key] + frequency * displacement;
+      const decay = Math.exp(-frequency / rate);
+      const next = target[key] + (displacement + impulse / rate) * decay;
+      const speed = /EyeBall/.test(key) ? 4 : /Brow|Breath/.test(key) ? 1 : SECONDARY_PARAMETERS.has(key) ? 2 : /Body|Position/.test(key) ? 16 : 32;
+      const bounded = clamp(next, state[key] - speed / rate, state[key] + speed / rate);
+      velocity[key] = bounded === next ? (velocity[key] - frequency * impulse / rate) * decay : (bounded - state[key]) * rate;
+      state[key] = clamp(bounded, key === 'ParamBreath' ? 0 : -MOTION_LIMITS[key], MOTION_LIMITS[key]);
+      if (state[key] !== bounded) velocity[key] = 0;
     }
     frames.push({ ...state });
   }
-  return { frames, rate, duration, seed, phrases, beats, blinks };
+  return { frames, rate, duration, seed, phrases, beats, blinks, gestures, gaze, cues, postures };
 }
 
 export function speechPoseAt(plan, seconds) {

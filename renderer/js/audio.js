@@ -27,6 +27,7 @@ import { isCoeiroinkRelatedError, showOperationError } from './coeiroink-warning
 import { coerceSampleRate, showToast } from './utils.js';
 import { exportRangesPipelined, exportRangesConcurrent } from './parallel.mjs';
 import { compute } from './compute-pool.js';
+import { narrationSegments } from './speech-cues.mjs';
 import { saveActiveSegmentParams } from './editor.js';
 import { bridge } from './bridge.js';
 import { getExportSamplingRate, persistAppSettings } from './settings.js';
@@ -119,7 +120,7 @@ export async function synthesizeLine(
   return buffer;
 }
 
-export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal, { all = false } = {}) {
+export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPLE_RATE, signal, { all = false, includeTiming = false } = {}) {
   saveActiveSegmentParams();
   const p = activeProject();
   const allRanges = sentenceRangesFromText(els.editor.value);
@@ -129,6 +130,7 @@ export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPL
   }
   /** @type {ArrayBuffer[]} */
   const parts = [];
+  const timingParts = [];
   const result = await exportRangesPipelined(ranges, {
     prepare: async r => {
       signal?.throwIfAborted();
@@ -141,12 +143,16 @@ export async function buildPlaybackUtterance(outputSamplingRate = PLAYBACK_SAMPL
       }
       return synthesizeLine(r.text, params, prosody, outputSamplingRate, signal);
     },
-    save: (wav, range, index) => { parts[index] = wav; },
+    save: (wav, range, index) => {
+      parts[index] = wav;
+      if (includeTiming) timingParts[index] = { text: range.text, duration: wavDuration(wav) };
+    },
     shouldStopOnError: () => true,
   });
   if (result.failures.length) throw result.failures[0].error;
   signal?.throwIfAborted();
-  return compute('concat', parts, parts);
+  const buffer = await compute('concat', parts, parts);
+  return includeTiming ? { buffer, text: ranges.map(range => range.text).join('、'), segments: narrationSegments(timingParts) } : buffer;
 }
 
 export function resizeWaveformCanvas() {
@@ -407,15 +413,19 @@ export async function exportCombinedAudio() {
 
     saveActiveSegmentParams();
     const parts = [];
+    const timingParts = [];
     const prepared = await exportRangesPipelined(ranges, {
       prepare: range => synthesizeRange(p, range),
-      save: (buffer, range, index) => { parts[index] = buffer; },
+      save: (buffer, range, index) => {
+        parts[index] = buffer;
+        timingParts[index] = { text: range.text, duration: wavDuration(buffer) };
+      },
       onProgress: ({ current, total }) => setExportProgress(`${current}/${total}件目の音声を出力しています…`),
       shouldStopOnError: () => true,
     });
     if (prepared.failures.length) throw prepared.failures[0].error;
     const combined = await compute('concat', parts, parts);
-    await writeExportFiles(filePath, combined, els.editor.value);
+    await writeExportFiles(filePath, combined, els.editor.value, 0, narrationSegments(timingParts));
     closeExportChoiceModal({ force: true });
     const artifactLabel = `${appState.exportTextFileEnabled ? 'WAVとtxt' : 'WAV'}${document.getElementById('exportIncludeVideo').checked ? 'とMP4' : ''}を`;
     showToast(`全文を1つの${artifactLabel}書き出しました: ${filePath}`);
@@ -554,7 +564,7 @@ export async function exportSelectedAudio() {
   }
 }
 
-async function writeExportFiles(filePath, buffer, text, originSeconds = 0) {
+async function writeExportFiles(filePath, buffer, text, originSeconds = 0, segments = []) {
   // WAVをかんしくんが検知する時点で同名txtが読めるよう、txtを先に書く。
   if (appState.exportTextFileEnabled) {
     await bridge.writeTextFile(
@@ -570,7 +580,7 @@ async function writeExportFiles(filePath, buffer, text, originSeconds = 0) {
     try {
       const motion = selectedMotion();
       await exportNarrationVideo(buffer, filePath, motion ? { ...motion, originSeconds } : null, {
-        text, enabled: document.getElementById('videoExpressions').checked,
+        text, segments, enabled: document.getElementById('videoExpressions').checked,
       });
     } catch (error) {
       const failure = new Error(`WAVは保存済みですが、動画を保存できませんでした: ${error.message}`);
