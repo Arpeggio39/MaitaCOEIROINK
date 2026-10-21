@@ -55,3 +55,11 @@ test('保存に失敗しても後続の保存を妨げない', async (t) => {
   await writeJsonAtomic(file, { version: 2 });
   assert.deepEqual(await readJsonWithBackup(file), { version: 2 });
 });
+
+test('保存中断でプライマリがなくなってもバックアップから復旧する', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'openmaita-json-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'projects.json');
+  fs.writeFileSync(`${file}.bak`, JSON.stringify({ recovered: true }), 'utf8');
+  assert.deepEqual(await readJsonWithBackup(file), { recovered: true });
+});

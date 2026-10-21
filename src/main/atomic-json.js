@@ -24,11 +24,11 @@ function readJsonWithBackup(filePath) {
     try {
       return await readJson(filePath);
     } catch (primaryError) {
-      if (primaryError.code === 'ENOENT') return null;
       try {
         return await readJson(`${filePath}.bak`);
-      } catch (_) {
-        throw primaryError;
+      } catch (backupError) {
+        if (primaryError.code === 'ENOENT' && backupError.code === 'ENOENT') return null;
+        throw primaryError.code === 'ENOENT' ? backupError : primaryError;
       }
     }
   });
