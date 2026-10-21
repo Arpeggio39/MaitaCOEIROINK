@@ -108,14 +108,14 @@ function fitVideoToCharacter() {
   model.anchor.set(0.5, 0);
   model.position.set(640, 20);
   model.update(1000 / 60);
-  app.renderer.render(app.stage);
-  const image = app.renderer.plugins.extract.canvas();
+  app.renderer.render({ container: app.stage });
+  const image = app.renderer.extract.canvas({ target: app.stage, frame: app.screen.clone() });
   const pixels = image.getContext('2d').getImageData(0, 0, image.width, image.height).data;
   const frame = fitCharacterFrame(pixels, image.width, image.height);
   model.position.x += frame.offsetX;
   model.position.y += frame.offsetY;
   app.renderer.resize(frame.width, frame.height);
-  app.renderer.backgroundAlpha = 1;
+  app.renderer.background.alpha = 1;
   $('videoDimensions').textContent = `${frame.width} × ${frame.height}`;
 }
 
@@ -144,7 +144,7 @@ function drawFrame(delta) {
       ? value : currentPose[key] + (value - currentPose[key]) * blend;
   }
   model.update(delta);
-  if (analysisTarget) analysisTarget.render(app.stage); else app.renderer.render(app.stage);
+  if (analysisTarget) analysisTarget.render(app.stage); else app.renderer.render({ container: app.stage });
   updateTime();
 }
 
@@ -222,7 +222,7 @@ async function analyzeFrames(frameCount, generation) {
   let bounds = null, width = 1280, height = 1280;
   const limit = Math.min(4096,app.renderer.gl.getParameter(app.renderer.gl.MAX_TEXTURE_SIZE));
   model.position.set(640,256);
-  app.renderer.backgroundAlpha = 0;
+  app.renderer.background.alpha = 0;
   analysisTarget = createGpuFrameBounds(app.renderer,width,height);
   const capture = () => snapshots.push({
     parameters: Float32Array.from({length:core.getParameterCount()},(_,i)=>core.getParameterValueByIndex(i)),
@@ -276,7 +276,7 @@ async function exportVideo({ wavPath } = {}) {
     model.position.set((model.position.x+frame.offsetX)*scale,(model.position.y+frame.offsetY)*scale);
     model.scale.set(model.scale.x*scale,model.scale.y*scale);
     app.renderer.resize(Math.ceil(frame.width*scale/2)*2,Math.ceil(frame.height*scale/2)*2);
-    app.renderer.backgroundAlpha=1;
+    app.renderer.background.alpha=1;
     $('videoDimensions').textContent=`${canvas.width} × ${canvas.height}`;
     exportPhase='encode';
     // Reuse the measured poses and camera when a driver capacity retry is needed.
@@ -290,9 +290,9 @@ async function exportVideo({ wavPath } = {}) {
           for(let i=0;i<snapshot.parameters.length;i++) core.setParameterValueByIndex(i,snapshot.parameters[i]);
           for(let i=0;i<snapshot.parts.length;i++) core.setPartOpacityByIndex(i,snapshot.parts[i]);
           model.alpha=snapshot.alpha;core.update();
-          app.renderer.render(app.stage);
+          app.renderer.render({ container: app.stage });
           elapsed=index/30;updateTime();
-          const pixels = app.renderer.plugins.extract.pixels();
+          const pixels = app.renderer.extract.pixels({ target: app.stage, frame: app.screen.clone(), clearColor: 0x00ff00 }).pixels;
           await host.frame(session.id, pixels.buffer);
         }
         elapsed = audio.duration;
@@ -321,7 +321,7 @@ window.maitaVideo = {
       const loaded = await prepareAudio(() => Promise.resolve(buffer), '書き出すナレーション', expressionOptions);
       if (!loaded) throw new Error($('videoStatus').textContent);
       if (recorded) {
-        const ids = new Set(model.internalModel.coreModel._parameterIds);
+        const ids = new Set(model.internalModel.coreModel.getModel().parameters.ids);
         if (!recorded.motion.curves.some(curve => curve.target === 'Parameter' && ids.has(curve.id))) {
           throw new Error('このモデルに対応するパラメーターがありません。同じマイタモデルで収録したモーションを選んでください。');
         }
@@ -359,8 +359,13 @@ for (const id of ['videoSensitivity', 'videoMotionStrength']) {
 }
 
 try {
-  app = new PIXI.Application({
-    view: $('characterCanvas'), width: 1280, height: 720,
+  PIXI.extensions.add(PIXI.live2d.Live2DPlugin);
+  // CSPを維持し、同梱画像はメインスレッドでデコードする。
+  PIXI.Assets.setPreferences({ preferWorkers: false });
+  app = new PIXI.Application();
+  await app.init({
+    canvas: $('characterCanvas'), width: 1280, height: 720,
+    preference: 'webgl',
     backgroundColor: 0x00ff00, backgroundAlpha: 0,
     antialias: true, autoStart: false, preserveDrawingBuffer: true,
   });
@@ -372,14 +377,14 @@ try {
   model.internalModel.breath = undefined;
   model.internalModel.eyeBlink = undefined;
   const core = model.internalModel.coreModel;
-  const indices = new Map(core._parameterIds.map((id, index) => [id, index]));
+  const indices = new Map(core.getModel().parameters.ids.map((id, index) => [id, index]));
   const apply = (id, value, additive = false) => {
     const index = indices.get(id);
     if (index === undefined) return;
     const target = additive ? core.getParameterValueByIndex(index) + value : value;
     core.setParameterValueByIndex(index, Math.max(core.getParameterMinimumValue(index), Math.min(core.getParameterMaximumValue(index), target)));
   };
-  const parts = new Map(core._partIds.map((id, index) => [id, index]));
+  const parts = new Map(core.getModel().parts.ids.map((id, index) => [id, index]));
   function applyExpression() {
     if (recorded || !(running || exporting)) return;
     for (const [id, expression] of Object.entries(expressionAt(expressionCues, elapsed))) {
@@ -442,5 +447,5 @@ try {
 window.addEventListener('beforeunload', () => {
   window.maitaVideo.suspend();
   context?.close();
-  app?.destroy(false, { children: true, texture: true, baseTexture: true });
+  app?.destroy(false, { children: true, texture: true, textureSource: true });
 });
