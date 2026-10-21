@@ -3,38 +3,39 @@ const { projectsPath, appSettingsPath } = require('../paths');
 const { readJsonWithBackup, writeJsonAtomic } = require('../atomic-json');
 
 function registerStorageIpc() {
-  ipcMain.handle('storage:loadProjects', () => {
+  ipcMain.handle('storage:loadProjects', async () => {
     try {
-      return readJsonWithBackup(projectsPath());
+      return await readJsonWithBackup(projectsPath());
     } catch (error) {
       return { __openMaitaLoadError: error.message };
     }
   });
 
-  ipcMain.handle('storage:saveProjects', (_e, data) => {
-    writeJsonAtomic(projectsPath(), data);
+  ipcMain.handle('storage:saveProjects', async (_e, data) => {
+    await writeJsonAtomic(projectsPath(), data);
     return true;
   });
 
-  ipcMain.on('storage:saveProjectsSync', (event, data) => {
+  // beforeunload は応答を待つが、メイン側の I/O は通常保存と同じキューで処理する。
+  ipcMain.on('storage:saveProjectsSync', async (event, data) => {
     try {
-      writeJsonAtomic(projectsPath(), data);
+      await writeJsonAtomic(projectsPath(), data);
       event.returnValue = { ok: true };
     } catch (error) {
       event.returnValue = { ok: false, error: error.message };
     }
   });
 
-  ipcMain.handle('storage:loadAppSettings', () => {
+  ipcMain.handle('storage:loadAppSettings', async () => {
     try {
-      return readJsonWithBackup(appSettingsPath());
+      return await readJsonWithBackup(appSettingsPath());
     } catch {
       return null;
     }
   });
 
-  ipcMain.handle('storage:saveAppSettings', (_e, data) => {
-    writeJsonAtomic(appSettingsPath(), data);
+  ipcMain.handle('storage:saveAppSettings', async (_e, data) => {
+    await writeJsonAtomic(appSettingsPath(), data);
     return true;
   });
 }

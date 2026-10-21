@@ -1,6 +1,6 @@
 const { applyCpuBudget } = require('./cpu-budget');
 applyCpuBudget();
-const path = require('path');
+const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 const { installAppMenu } = require('./menu');
 const { registerAllIpcHandlers } = require('./ipc');

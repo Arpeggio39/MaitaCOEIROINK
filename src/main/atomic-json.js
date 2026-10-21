@@ -1,61 +1,71 @@
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+const pending = new Map();
+
+// 同じファイルの読書きを直列化し、保存順とバックアップを維持する。
+function withFile(filePath, operation) {
+  const key = path.resolve(filePath);
+  const previous = pending.get(key) || Promise.resolve();
+  const result = previous.catch(() => {}).then(operation);
+  pending.set(key, result);
+  const release = () => { if (pending.get(key) === result) pending.delete(key); };
+  void result.then(release, release);
+  return result;
+}
+
+async function readJson(filePath) {
+  return JSON.parse(await fs.readFile(filePath, 'utf8'));
 }
 
 function readJsonWithBackup(filePath) {
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    return readJson(filePath);
-  } catch (primaryError) {
-    const backupPath = `${filePath}.bak`;
+  return withFile(filePath, async () => {
     try {
-      if (fs.existsSync(backupPath)) return readJson(backupPath);
-    } catch (_) {
-      /* Report the primary parse failure below. */
+      return await readJson(filePath);
+    } catch (primaryError) {
+      if (primaryError.code === 'ENOENT') return null;
+      try {
+        return await readJson(`${filePath}.bak`);
+      } catch (_) {
+        throw primaryError;
+      }
     }
-    throw primaryError;
-  }
+  });
 }
 
 function writeJsonAtomic(filePath, data) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  const backupPath = `${filePath}.bak`;
   const serialized = JSON.stringify(data, null, 2);
-  fs.writeFileSync(temporaryPath, serialized, 'utf8');
-
-  let movedPrevious = false;
-  try {
-    if (fs.existsSync(filePath)) {
+  return withFile(filePath, async () => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+    const backupPath = `${filePath}.bak`;
+    let movedPrevious = false;
+    try {
+      await fs.writeFile(temporaryPath, serialized, { encoding: 'utf8', flag: 'wx' });
+      let primaryExists = true;
       let primaryIsValid = false;
       try {
-        readJson(filePath);
+        await readJson(filePath);
         primaryIsValid = true;
-      } catch (_) {
-        /* Preserve the corrupt file below instead of replacing the backup. */
+      } catch (error) {
+        if (error.code === 'ENOENT') primaryExists = false;
       }
       if (primaryIsValid) {
-        fs.rmSync(backupPath, { force: true });
-        fs.renameSync(filePath, backupPath);
+        await fs.rm(backupPath, { force: true });
+        await fs.rename(filePath, backupPath);
         movedPrevious = true;
-      } else {
-        const corruptPath = `${filePath}.corrupt-${Date.now()}`;
-        fs.renameSync(filePath, corruptPath);
+      } else if (primaryExists) {
+        await fs.rename(filePath, `${filePath}.corrupt-${Date.now()}`);
       }
+      await fs.rename(temporaryPath, filePath);
+    } catch (error) {
+      if (movedPrevious) await fs.rename(backupPath, filePath);
+      throw error;
+    } finally {
+      await fs.rm(temporaryPath, { force: true });
     }
-    fs.renameSync(temporaryPath, filePath);
-  } catch (error) {
-    if (movedPrevious && !fs.existsSync(filePath) && fs.existsSync(backupPath)) {
-      fs.renameSync(backupPath, filePath);
-    }
-    throw error;
-  } finally {
-    fs.rmSync(temporaryPath, { force: true });
-  }
+  });
 }
 
 module.exports = { readJsonWithBackup, writeJsonAtomic };

@@ -7,16 +7,9 @@ import { els } from './dom.js';
  * @param {number} [ms]
  */
 export function fetchWithTimeout(url, init = {}, ms = 8000) {
-  const ctrl = new AbortController();
-  const externalSignal = init.signal;
-  const abortFromExternal = () => ctrl.abort(externalSignal?.reason);
-  if (externalSignal?.aborted) abortFromExternal();
-  else externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
-  const id = setTimeout(() => ctrl.abort(new DOMException('Timed out', 'TimeoutError')), ms);
-  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => {
-    clearTimeout(id);
-    externalSignal?.removeEventListener('abort', abortFromExternal);
-  });
+  const timeout = AbortSignal.timeout(ms);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(url, { ...init, signal });
 }
 
 export function coerceSampleRate(value) {

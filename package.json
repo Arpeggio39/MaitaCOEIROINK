@@ -3,6 +3,7 @@
   "version": "1.14.0",
   "description": "COEIROINK で琵音マイタのナレーションを作る Windows アプリ",
   "main": "src/main/index.js",
+  "type": "commonjs",
   "author": "Arpeggio",
   "license": "MIT",
   "dependencies": {

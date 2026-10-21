@@ -22,17 +22,26 @@ function harness(t, existing) {
   context.module.exports.registerDictionaryIpc();
   return { handlers, file };
 }
-test('first launch loads and persists the actual bundled dictionary from the IPC directory', t => {
+test('first launch loads and persists the actual bundled dictionary from the IPC directory', async t => {
   const { handlers, file } = harness(t);
   const expected = require('../renderer/default-dictionary.json');
-  const loaded = handlers.get('dictionary:load')();
+  const loaded = await handlers.get('dictionary:load')();
   assert.deepEqual(loaded, expected);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), expected);
 });
-test('explicitly empty or edited user dictionaries are preserved, with defaults available separately', t => {
+test('explicitly empty or edited user dictionaries are preserved, with defaults available separately', async t => {
   for (const existing of [{ dictionaryWords: [] }, { dictionaryWords: [{ word: 'Arpeggio', yomi: 'テスト', accent: 1 }] }]) {
     const { handlers } = harness(t, existing);
-    assert.deepEqual(handlers.get('dictionary:load')(), existing);
-    assert.equal(handlers.get('dictionary:defaults')().dictionaryWords.length, 25);
+    assert.deepEqual(await handlers.get('dictionary:load')(), existing);
+    assert.equal((await handlers.get('dictionary:defaults')()).dictionaryWords.length, 25);
   }
+});
+
+test('初回の読み込みと保存が重なっても編集した辞書を既定値で上書きしない', async t => {
+  const { handlers } = harness(t);
+  const edited = { dictionaryWords: [{ word: 'Arpeggio', yomi: 'アルペジオ', accent: 1 }] };
+  const initial = handlers.get('dictionary:load')();
+  const saved = handlers.get('dictionary:save')(null, edited);
+  await Promise.all([initial, saved]);
+  assert.deepEqual(await handlers.get('dictionary:load')(), edited);
 });
