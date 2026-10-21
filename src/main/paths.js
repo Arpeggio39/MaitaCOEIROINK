@@ -1,5 +1,5 @@
 const { app } = require('electron');
-const path = require('path');
+const path = require('node:path');
 
 const PROJECTS_FILE = 'projects-data.json';
 const APP_SETTINGS_FILE = 'app-settings.json';

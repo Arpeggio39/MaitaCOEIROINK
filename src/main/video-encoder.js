@@ -90,7 +90,7 @@ async function createVideoEncoder({ wavPath, width, height, frameCount }) {
         if (code !== 0 || aborted) throw encodeError();
         // Reserve at publication, preserving existing MP4s even across simultaneous exports.
         for (;;) {
-          const output = resolveExportFilePath(path.dirname(wavPath), path.basename(wavPath).replace(/\.wav$/i, '.mp4'));
+          const output = await resolveExportFilePath(path.dirname(wavPath), path.basename(wavPath).replace(/\.wav$/i, '.mp4'));
           try { await copyFile(temporary, output, constants.COPYFILE_EXCL); return output; }
           catch (error) { if (error.code !== 'EEXIST') throw error; }
         }

@@ -51,7 +51,7 @@ function registerVideoIpc() {
       if (typeof options.wavPath !== 'string' || !path.isAbsolute(options.wavPath) || !/\.wav$/i.test(options.wavPath)) {
         throw new Error('音声の保存先が不正です。');
       }
-      const outputPath = resolveExportFilePath(path.dirname(options.wavPath), path.basename(options.wavPath).replace(/\.wav$/i, '.mp4'));
+      const outputPath = await resolveExportFilePath(path.dirname(options.wavPath), path.basename(options.wavPath).replace(/\.wav$/i, '.mp4'));
       await writeFile(outputPath, Buffer.from(buffer), { flag: 'wx' });
       return outputPath;
     }

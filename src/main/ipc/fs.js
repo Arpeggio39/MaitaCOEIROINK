@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { ipcMain } = require('electron');
 const { encodeText, resolveExportFilePath } = require('../export-files');
 
@@ -8,7 +8,7 @@ function registerFsIpc() {
     return resolveExportFilePath(directoryPath, defaultName, options);
   });
 
-  ipcMain.handle('fs:writeWav', (_e, filePath, buffer) => {
+  ipcMain.handle('fs:writeWav', async (_e, filePath, buffer) => {
     let data;
     if (Buffer.isBuffer(buffer)) {
       data = buffer;
@@ -19,13 +19,13 @@ function registerFsIpc() {
     } else {
       data = Buffer.from(buffer);
     }
-    fs.writeFileSync(filePath, data);
+    await fs.writeFile(filePath, data);
     return true;
   });
 
-  ipcMain.handle('fs:writeText', (_e, filePath, text, encoding = 'utf8') => {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, encodeText(text, encoding));
+  ipcMain.handle('fs:writeText', async (_e, filePath, text, encoding = 'utf8') => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, encodeText(text, encoding));
     return true;
   });
 }
