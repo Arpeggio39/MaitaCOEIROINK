@@ -1,7 +1,7 @@
 {
   "name": "openmaita-shell",
-  "version": "1.12.0",
-  "description": "COEIROINK \u3067\u7435\u97f3\u30de\u30a4\u30bf\u306e\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3092\u4f5c\u308b Windows \u30a2\u30d7\u30ea",
+  "version": "1.13.0",
+  "description": "COEIROINK で琵音マイタのナレーションを作る Windows アプリ",
   "main": "src/main/index.js",
   "author": "Arpeggio",
   "license": "MIT",
